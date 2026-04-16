@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Med-Anonymizer — Informazioni</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Segoe UI', system-ui, sans-serif; }
+    .prose-sm p { margin-bottom: .75rem; }
+    .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:.7rem; font-weight:600; }
+    ::-webkit-scrollbar { width:5px; } ::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:4px; }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+<!-- Header -->
+<header class="bg-gradient-to-r from-[#1e3a5f] to-[#1d4ed8] text-white shadow-lg sticky top-0 z-50">
+  <div class="max-w-screen-xl mx-auto px-5 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="text-3xl">🏥</span>
+      <div>
+        <p class="text-lg font-extrabold tracking-tight leading-none">Med-Anonymizer</p>
+        <p class="text-blue-200 text-[11px] leading-none mt-0.5">De-identificazione clinica AI · OpenMed</p>
+      </div>
+    </div>
+    <nav class="flex gap-1 text-sm">
+      <a href="/ui"   class="hover:bg-white/15 px-3 py-1.5 rounded-lg transition">🔧 Test</a>
+      <a href="/info" class="bg-white/20 px-3 py-1.5 rounded-lg font-semibold">ℹ️ Info</a>
+      <a href="/docs" target="_blank" class="hover:bg-white/15 px-3 py-1.5 rounded-lg transition">📖 Swagger</a>
+      <a href="/redoc" target="_blank" class="hover:bg-white/15 px-3 py-1.5 rounded-lg transition">📄 ReDoc</a>
+    </nav>
+  </div>
+</header>
+
+<main class="max-w-screen-xl mx-auto px-5 py-10 space-y-10">
+
+  <!-- Hero -->
+  <section class="bg-gradient-to-br from-blue-900 to-blue-700 text-white rounded-2xl p-8 shadow-xl">
+    <div class="max-w-3xl">
+      <h1 class="text-3xl font-extrabold mb-3">🏥 Med-Anonymizer</h1>
+      <p class="text-blue-100 text-lg leading-relaxed">
+        Servizio REST open source per la <strong class="text-white">de-identificazione automatica</strong>
+        di informazioni personali sensibili (PII) da testi clinici italiani, risorse FHIR e messaggi HL7 v2,
+        basato sui modelli AI italiani di <a href="https://huggingface.co/OpenMed" target="_blank"
+        class="underline text-white font-semibold hover:text-blue-200">OpenMed</a>.
+      </p>
+      <div class="mt-5 flex flex-wrap gap-3">
+        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">⚡ Veloce — 110M params</span>
+        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🌍 Multi-arch AMD64 + ARM64</span>
+        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🐳 Docker · Kubernetes ready</span>
+        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🔒 HIPAA · GDPR</span>
+        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">📄 Apache 2.0</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Grid 2 col -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- Left — main content -->
+    <div class="lg:col-span-2 space-y-6">
+
+      <!-- Come funziona -->
+      <div class="bg-white rounded-2xl shadow-sm p-6">
+        <h2 class="text-xl font-bold text-blue-900 mb-4">⚙️ Come funziona</h2>
+        <ol class="space-y-3 text-sm">
+          <li class="flex gap-3">
+            <span class="flex-shrink-0 w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">1</span>
+            <div><strong>Invio del testo</strong> — il client invia il documento tramite REST (JSON, testo libero, FHIR o HL7).</div>
+          </li>
+          <li class="flex gap-3">
+            <span class="flex-shrink-0 w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">2</span>
+            <div><strong>Chunking automatico</strong> — per documenti lunghi (>1 200 char) il testo viene diviso in segmenti ai confini di paragrafo/frase.</div>
+          </li>
+          <li class="flex gap-3">
+            <span class="flex-shrink-0 w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">3</span>
+            <div><strong>NER con OpenMed</strong> — il modello BERT token-classification rileva le entità PII con posizione e score di confidenza.</div>
+          </li>
+          <li class="flex gap-3">
+            <span class="flex-shrink-0 w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">4</span>
+            <div><strong>Redazione</strong> — le entità vengono sostituite con <code class="bg-slate-100 px-1 rounded">[ENTITY_TYPE]</code> o <code class="bg-slate-100 px-1 rounded">[REDACTED]</code> preservando offset e struttura.</div>
+          </li>
+          <li class="flex gap-3">
+            <span class="flex-shrink-0 w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">5</span>
+            <div><strong>Risposta</strong> — il testo anonimizzato, le entità rilevate e i metadati vengono restituiti in JSON.</div>
+          </li>
+        </ol>
+      </div>
+
+      <!-- Modelli -->
+      <div class="bg-white rounded-2xl shadow-sm p-6">
+        <h2 class="text-xl font-bold text-blue-900 mb-4">🤖 Modelli OpenMed disponibili</h2>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm border-separate border-spacing-0">
+            <thead>
+              <tr class="bg-blue-50">
+                <th class="text-left px-3 py-2 rounded-tl-lg text-blue-800 font-semibold">Chiave</th>
+                <th class="text-left px-3 py-2 text-blue-800 font-semibold">Modello HuggingFace</th>
+                <th class="text-center px-3 py-2 text-blue-800 font-semibold">Params</th>
+                <th class="text-center px-3 py-2 text-blue-800 font-semibold">F1 Micro</th>
+                <th class="text-left px-3 py-2 rounded-tr-lg text-blue-800 font-semibold">Note</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr class="bg-blue-50/40">
+                <td class="px-3 py-2.5 font-mono text-xs font-bold text-blue-700">italian-superclinical-base</td>
+                <td class="px-3 py-2.5 text-xs">OpenMed-PII-Italian-SuperClinical-Base-184M-v1</td>
+                <td class="px-3 py-2.5 text-center">184M</td>
+                <td class="px-3 py-2.5 text-center font-semibold text-green-700">0.960</td>
+                <td class="px-3 py-2.5 text-xs"><span class="badge bg-blue-100 text-blue-700">default</span> DeBERTa-v3-base · veloce</td>
+              </tr>
+              <tr>
+                <td class="px-3 py-2.5 font-mono text-xs font-bold text-blue-700">italian-bigmed-large</td>
+                <td class="px-3 py-2.5 text-xs">OpenMed-PII-Italian-BigMed-Large-560M-v1</td>
+                <td class="px-3 py-2.5 text-center">560M</td>
+                <td class="px-3 py-2.5 text-center font-semibold text-green-700">0.967</td>
+                <td class="px-3 py-2.5 text-xs">XLM-RoBERTa-large · note cliniche</td>
+              </tr>
+              <tr class="bg-slate-50">
+                <td class="px-3 py-2.5 font-mono text-xs font-bold text-blue-700">italian-superclinical-large</td>
+                <td class="px-3 py-2.5 text-xs">OpenMed-PII-Italian-SuperClinical-Large-434M-v1</td>
+                <td class="px-3 py-2.5 text-center">434M</td>
+                <td class="px-3 py-2.5 text-center font-semibold text-green-700">0.973</td>
+                <td class="px-3 py-2.5 text-xs">DeBERTa-v3-large · <span class="badge bg-green-100 text-green-700">#1 IT</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="text-xs text-slate-500 mt-3">
+          Tutti i modelli sono ottimizzati per l'italiano e valutati sul dataset
+          <a href="https://huggingface.co/datasets/ai4privacy/pii-masking-400k"
+          target="_blank" class="text-blue-600 underline">AI4Privacy PII Masking 400k</a> (subset italiano).
+        </p>
+      </div>
+
+      <!-- API endpoints -->
+      <div class="bg-white rounded-2xl shadow-sm p-6">
+        <h2 class="text-xl font-bold text-blue-900 mb-4">🔌 Endpoint REST</h2>
+        <div class="space-y-2 text-sm">
+          <div class="flex gap-3 items-start p-3 rounded-lg bg-slate-50">
+            <span class="badge bg-green-100 text-green-800 mt-0.5 text-[10px]">GET</span>
+            <div><code class="font-mono text-blue-700">/api/v1/health</code> — health check e modelli caricati</div>
+          </div>
+          <div class="flex gap-3 items-start p-3 rounded-lg bg-slate-50">
+            <span class="badge bg-green-100 text-green-800 mt-0.5 text-[10px]">GET</span>
+            <div><code class="font-mono text-blue-700">/api/v1/models</code> — lista modelli disponibili e metriche</div>
+          </div>
+          <div class="flex gap-3 items-start p-3 rounded-lg bg-blue-50">
+            <span class="badge bg-blue-100 text-blue-800 mt-0.5 text-[10px]">POST</span>
+            <div>
+              <code class="font-mono text-blue-700">/api/v1/anonymize/text</code>
+              <p class="text-slate-600 text-xs mt-0.5">Anonimizza testo clinico libero. Chunking automatico per testi lunghi.</p>
+            </div>
+          </div>
+          <div class="flex gap-3 items-start p-3 rounded-lg bg-blue-50">
+            <span class="badge bg-blue-100 text-blue-800 mt-0.5 text-[10px]">POST</span>
+            <div>
+              <code class="font-mono text-blue-700">/api/v1/anonymize/fhir</code>
+              <p class="text-slate-600 text-xs mt-0.5">Anonimizza una risorsa FHIR R4 (JSON) ricorsivamente.</p>
+            </div>
+          </div>
+          <div class="flex gap-3 items-start p-3 rounded-lg bg-blue-50">
+            <span class="badge bg-blue-100 text-blue-800 mt-0.5 text-[10px]">POST</span>
+            <div>
+              <code class="font-mono text-blue-700">/api/v1/anonymize/hl7</code>
+              <p class="text-slate-600 text-xs mt-0.5">Anonimizza messaggi HL7 v2.x preservando la struttura a segmenti.</p>
+            </div>
+          </div>
+          <div class="flex gap-3 items-start p-3 rounded-lg bg-purple-50">
+            <span class="badge bg-purple-100 text-purple-800 mt-0.5 text-[10px]">POST</span>
+            <div>
+              <code class="font-mono text-blue-700">/api/v1/detect</code>
+              <p class="text-slate-600 text-xs mt-0.5">Solo rilevamento NER (senza redazione). Restituisce entità con posizione e score.</p>
+            </div>
+          </div>
+          <div class="flex gap-3 items-start p-3 rounded-lg bg-slate-50">
+            <span class="badge bg-green-100 text-green-800 mt-0.5 text-[10px]">GET</span>
+            <div><code class="font-mono text-blue-700">/docs</code> — Swagger UI interattivo · <code class="font-mono text-blue-700">/redoc</code> — ReDoc</div>
+          </div>
+        </div>
+        <div class="mt-4 flex gap-3">
+          <a href="/docs" target="_blank"
+             class="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg font-semibold hover:bg-blue-700 transition">
+            📖 Apri Swagger UI
+          </a>
+          <a href="/redoc" target="_blank"
+             class="bg-slate-200 text-slate-800 text-sm px-4 py-2 rounded-lg font-semibold hover:bg-slate-300 transition">
+            📄 Apri ReDoc
+          </a>
+        </div>
+      </div>
+
+      <!-- Entità rilevabili -->
+      <div class="bg-white rounded-2xl shadow-sm p-6">
+        <h2 class="text-xl font-bold text-blue-900 mb-4">🏷️ Categorie PII rilevabili (54 tipi)</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <div>
+            <p class="font-semibold text-slate-700 mb-2">👤 Identità personale</p>
+            <div class="flex flex-wrap gap-1">
+              <span class="badge bg-blue-100 text-blue-800">name</span>
+              <span class="badge bg-blue-100 text-blue-800">date_of_birth</span>
+              <span class="badge bg-blue-100 text-blue-800">age</span>
+              <span class="badge bg-blue-100 text-blue-800">gender</span>
+              <span class="badge bg-blue-100 text-blue-800">race_ethnicity</span>
+              <span class="badge bg-blue-100 text-blue-800">nationality</span>
+              <span class="badge bg-blue-100 text-blue-800">religion</span>
+              <span class="badge bg-blue-100 text-blue-800">marital_status</span>
+              <span class="badge bg-blue-100 text-blue-800">occupation</span>
+              <span class="badge bg-blue-100 text-blue-800">education</span>
+              <span class="badge bg-blue-100 text-blue-800">disability</span>
+              <span class="badge bg-blue-100 text-blue-800">sexuality</span>
+            </div>
+          </div>
+          <div>
+            <p class="font-semibold text-slate-700 mb-2">🆔 Identificatori</p>
+            <div class="flex flex-wrap gap-1">
+              <span class="badge bg-red-100 text-red-800">ssn</span>
+              <span class="badge bg-red-100 text-red-800">medical_record_number</span>
+              <span class="badge bg-red-100 text-red-800">health_plan_beneficiary_number</span>
+              <span class="badge bg-red-100 text-red-800">tax_id</span>
+              <span class="badge bg-red-100 text-red-800">passport_number</span>
+              <span class="badge bg-red-100 text-red-800">drivers_license</span>
+              <span class="badge bg-red-100 text-red-800">national_id</span>
+              <span class="badge bg-red-100 text-red-800">biometric_identifier</span>
+              <span class="badge bg-red-100 text-red-800">account_number</span>
+              <span class="badge bg-red-100 text-red-800">credit_debit_card</span>
+              <span class="badge bg-red-100 text-red-800">vehicle_id</span>
+              <span class="badge bg-red-100 text-red-800">device_id</span>
+              <span class="badge bg-red-100 text-red-800">license_plate</span>
+              <span class="badge bg-red-100 text-red-800">certificate_license_number</span>
+              <span class="badge bg-red-100 text-red-800">unique_identifier</span>
+              <span class="badge bg-red-100 text-red-800">bank_account</span>
+            </div>
+          </div>
+          <div>
+            <p class="font-semibold text-slate-700 mb-2">📍 Localizzazione</p>
+            <div class="flex flex-wrap gap-1">
+              <span class="badge bg-orange-100 text-orange-800">address</span>
+              <span class="badge bg-orange-100 text-orange-800">city</span>
+              <span class="badge bg-orange-100 text-orange-800">state</span>
+              <span class="badge bg-orange-100 text-orange-800">country</span>
+              <span class="badge bg-orange-100 text-orange-800">zip_code</span>
+              <span class="badge bg-orange-100 text-orange-800">geographic_coordinates</span>
+            </div>
+          </div>
+          <div>
+            <p class="font-semibold text-slate-700 mb-2">📞 Contatti & Rete</p>
+            <div class="flex flex-wrap gap-1">
+              <span class="badge bg-green-100 text-green-800">phone_number</span>
+              <span class="badge bg-green-100 text-green-800">fax_number</span>
+              <span class="badge bg-green-100 text-green-800">email</span>
+              <span class="badge bg-green-100 text-green-800">url</span>
+              <span class="badge bg-green-100 text-green-800">ip_address</span>
+              <span class="badge bg-green-100 text-green-800">mac_address</span>
+              <span class="badge bg-green-100 text-green-800">username</span>
+            </div>
+          </div>
+          <div>
+            <p class="font-semibold text-slate-700 mb-2">📅 Temporale</p>
+            <div class="flex flex-wrap gap-1">
+              <span class="badge bg-purple-100 text-purple-800">date</span>
+              <span class="badge bg-purple-100 text-purple-800">time</span>
+              <span class="badge bg-purple-100 text-purple-800">date_time</span>
+            </div>
+          </div>
+          <div>
+            <p class="font-semibold text-slate-700 mb-2">🏢 Organizzazione</p>
+            <div class="flex flex-wrap gap-1">
+              <span class="badge bg-indigo-100 text-indigo-800">organization</span>
+              <span class="badge bg-indigo-100 text-indigo-800">political_affiliation</span>
+              <span class="badge bg-indigo-100 text-indigo-800">language</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right sidebar -->
+    <div class="space-y-5">
+
+      <!-- Quick start -->
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <h3 class="font-bold text-blue-900 mb-3">🚀 Quick start</h3>
+        <p class="text-xs text-slate-600 mb-2">Anonimizza con curl:</p>
+        <pre class="bg-slate-900 text-green-300 text-[10px] rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all">curl -X POST http://localhost:8000/api/v1/anonymize/text \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Paziente Mario Rossi, SSN: 123-45-6789",
+    "model": "biomedbert-base"
+  }'</pre>
+      </div>
+
+      <!-- Architettura -->
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <h3 class="font-bold text-blue-900 mb-3">🏗️ Architettura</h3>
+        <div class="space-y-2 text-xs text-slate-700">
+          <div class="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
+            <span class="text-lg">⚡</span>
+            <div><strong>FastAPI</strong> — framework ASGI ad alte prestazioni</div>
+          </div>
+          <div class="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
+            <span class="text-lg">🤗</span>
+            <div><strong>HuggingFace Transformers</strong> — pipeline NER token-classification</div>
+          </div>
+          <div class="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
+            <span class="text-lg">🧠</span>
+            <div><strong>OpenMed PII models</strong> — BERT fine-tuned su Nemotron-PII (54 entità)</div>
+          </div>
+          <div class="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
+            <span class="text-lg">🐳</span>
+            <div><strong>Docker multi-arch</strong> — immagine linux/amd64 + linux/arm64</div>
+          </div>
+          <div class="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
+            <span class="text-lg">☸️</span>
+            <div><strong>Kubernetes</strong> — Deployment, Service, Ingress pronti</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Conformità -->
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <h3 class="font-bold text-blue-900 mb-3">🔒 Conformità</h3>
+        <ul class="space-y-2 text-xs text-slate-700">
+          <li class="flex gap-2 items-start">
+            <span class="text-green-500 font-bold mt-0.5">✓</span>
+            <div><strong>HIPAA Safe Harbor</strong> — rileva tutte le 18 categorie PHI</div>
+          </li>
+          <li class="flex gap-2 items-start">
+            <span class="text-green-500 font-bold mt-0.5">✓</span>
+            <div><strong>GDPR Art. 4(5)</strong> — pseudonimizzazione dei dati personali</div>
+          </li>
+          <li class="flex gap-2 items-start">
+            <span class="text-yellow-500 font-bold mt-0.5">⚠</span>
+            <div>Strumento <em>assistivo</em>: per applicazioni critiche verificare sempre il risultato</div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- Link -->
+      <div class="bg-white rounded-2xl shadow-sm p-5">
+        <h3 class="font-bold text-blue-900 mb-3">🔗 Link utili</h3>
+        <ul class="space-y-2 text-sm">
+          <li><a href="https://huggingface.co/OpenMed" target="_blank" class="text-blue-600 hover:underline">🤗 OpenMed su HuggingFace</a></li>
+          <li><a href="https://huggingface.co/OpenMed/OpenMed-PII-Italian-SuperClinical-Base-184M-v1" target="_blank" class="text-blue-600 hover:underline">🧠 SuperClinical Base 184M (default)</a></li>
+          <li><a href="https://huggingface.co/OpenMed/OpenMed-PII-Italian-BigMed-Large-560M-v1" target="_blank" class="text-blue-600 hover:underline">🧠 BigMed Large 560M</a></li>
+          <li><a href="https://huggingface.co/OpenMed/OpenMed-PII-Italian-SuperClinical-Large-434M-v1" target="_blank" class="text-blue-600 hover:underline">🧠 SuperClinical Large 434M (#1 IT)</a></li>
+          <li><a href="https://huggingface.co/datasets/ai4privacy/pii-masking-400k" target="_blank" class="text-blue-600 hover:underline">📊 AI4Privacy dataset (subset italiano)</a></li>
+          <li><a href="/docs" class="text-blue-600 hover:underline">📖 Swagger UI</a></li>
+          <li><a href="/redoc" class="text-blue-600 hover:underline">📄 ReDoc</a></li>
+          <li><a href="/ui" class="text-blue-600 hover:underline">🔧 Interfaccia di test</a></li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="text-center text-xs text-slate-400 pb-4">
+    Med-Anonymizer v1.0.0 · Apache 2.0 · powered by
+    <a href="https://huggingface.co/OpenMed" target="_blank" class="text-blue-500 hover:underline">OpenMed</a>
+  </footer>
+
+</main>
+</body>
+</html>
