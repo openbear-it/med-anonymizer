@@ -2,6 +2,8 @@ name: Docker Build & Push
 
 on:
   push:
+    branches:
+    - "**"
     tags:
     - "v*"
 
@@ -46,9 +48,9 @@ jobs:
       with:
         images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
         tags: |
-          # branch push → :latest
-          type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
-          # git tag push → :vX.Y.Z  and  :X.Y.Z
+          # ogni branch push → :latest
+          type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/heads/') }}
+          # git tag v1.2.3 → :1.2.3  +  :1.2
           type=semver,pattern={{version}}
           type=semver,pattern={{major}}.{{minor}}
           # always add short SHA for traceability
