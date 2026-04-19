@@ -6,3 +6,5 @@ hl7>=0.4.0
 pydantic>=2.0.0
 python-multipart>=0.0.9
 sentencepiece>=0.1.99
+pydicom>=2.4.0
+lxml>=5.0.0

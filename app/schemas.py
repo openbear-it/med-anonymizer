@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, List
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -13,6 +13,7 @@ class ModelKey(str, Enum):
 class PlaceholderFormat(str, Enum):
     tag = "tag"
     redacted = "redacted"
+    pseudonym = "pseudonym"
 
 
 # ─── Requests ────────────────────────────────────────────────────────────────
@@ -100,6 +101,10 @@ class AnonymizeResponse(BaseModel):
     entity_count: int = Field(..., description="Numero totale di entità rilevate")
     model_used: str = Field(..., description="ID HuggingFace del modello utilizzato")
     processing_time_ms: float = Field(..., description="Tempo di elaborazione in millisecondi")
+    pseudonym_map: Optional[Dict[str, str]] = Field(
+        None,
+        description="Mappa pseudonimo→originale (presente solo quando placeholder_format='pseudonym')",
+    )
 
 
 class DetectResponse(BaseModel):
@@ -128,6 +133,52 @@ class ModelInfo(BaseModel):
 class ModelsResponse(BaseModel):
     models: List[ModelInfo]
     default: str
+
+
+# ─── DICOM ───────────────────────────────────────────────────────────────────
+
+
+class DicomFieldResult(BaseModel):
+    tag: str = Field(..., description="Tag DICOM in formato (GGGG,EEEE)")
+    name: str = Field(..., description="Keyword del tag DICOM")
+    original: str = Field(..., description="Valore originale")
+    anonymized: str = Field(..., description="Valore anonimizzato")
+
+
+class DicomAnonymizeResponse(BaseModel):
+    tags_modified: int = Field(..., description="Numero di tag DICOM modificati")
+    entities_found: int = Field(..., description="Numero di entità PII trovate nei campi liberi")
+    modified_tags: List[DicomFieldResult] = Field(..., description="Dettaglio dei tag modificati")
+    model_used: str
+    processing_time_ms: float
+
+
+# ─── CDA / IHE ───────────────────────────────────────────────────────────────
+
+
+class CdaRequest(BaseModel):
+    document: str = Field(
+        ...,
+        description="Documento CDA R2 (HL7 Clinical Document Architecture) in formato XML",
+        min_length=10,
+        examples=["<ClinicalDocument xmlns='urn:hl7-org:v3'>…</ClinicalDocument>"],
+    )
+    model: ModelKey = Field(ModelKey.italian_superclinical_base)
+    placeholder_format: PlaceholderFormat = Field(PlaceholderFormat.tag)
+    min_confidence: float = Field(0.70, ge=0.0, le=1.0)
+
+
+class CdaAnonymizeResponse(BaseModel):
+    anonymized_document: str = Field(
+        ..., description="Documento CDA con tutte le entità PII anonimizzate"
+    )
+    entities: List[Entity]
+    entity_count: int
+    model_used: str
+    processing_time_ms: float
+
+
+# ─── Sistema ─────────────────────────────────────────────────────────────────
 
 
 class HealthResponse(BaseModel):

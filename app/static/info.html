@@ -47,9 +47,9 @@
       </p>
       <div class="mt-5 flex flex-wrap gap-3">
         <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">⚡ Veloce — 110M params</span>
-        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🌍 Multi-arch AMD64 + ARM64</span>
-        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🐳 Docker · Kubernetes ready</span>
         <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🔒 HIPAA · GDPR</span>
+        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🩻 DICOM</span>
+        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🏥 IHE XDS/CDA</span>
         <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">📄 Apache 2.0</span>
       </div>
     </div>
@@ -108,7 +108,7 @@
                 <td class="px-3 py-2.5 text-xs">OpenMed-PII-Italian-SuperClinical-Base-184M-v1</td>
                 <td class="px-3 py-2.5 text-center">184M</td>
                 <td class="px-3 py-2.5 text-center font-semibold text-green-700">0.960</td>
-                <td class="px-3 py-2.5 text-xs"><span class="badge bg-blue-100 text-blue-700">default</span> DeBERTa-v3-base · veloce</td>
+                <td class="px-3 py-2.5 text-xs">DeBERTa-v3-base · veloce</td>
               </tr>
               <tr>
                 <td class="px-3 py-2.5 font-mono text-xs font-bold text-blue-700">italian-bigmed-large</td>
@@ -122,7 +122,7 @@
                 <td class="px-3 py-2.5 text-xs">OpenMed-PII-Italian-SuperClinical-Large-434M-v1</td>
                 <td class="px-3 py-2.5 text-center">434M</td>
                 <td class="px-3 py-2.5 text-center font-semibold text-green-700">0.973</td>
-                <td class="px-3 py-2.5 text-xs">DeBERTa-v3-large · <span class="badge bg-green-100 text-green-700">#1 IT</span></td>
+                <td class="px-3 py-2.5 text-xs">DeBERTa-v3-large · <span class="badge bg-green-100 text-green-700">#1 IT</span> <span class="badge bg-blue-100 text-blue-700">default</span></td>
               </tr>
             </tbody>
           </table>
@@ -171,7 +171,21 @@
             <span class="badge bg-purple-100 text-purple-800 mt-0.5 text-[10px]">POST</span>
             <div>
               <code class="font-mono text-blue-700">/api/v1/detect</code>
-              <p class="text-slate-600 text-xs mt-0.5">Solo rilevamento NER (senza redazione). Restituisce entità con posizione e score.</p>
+              <p class="text-slate-600 text-xs mt-0.5">Solo rilevamento NER (senza redazione). Restituisce entità con posizione e score. Base per la <strong>modalità revisione umana</strong>.</p>
+            </div>
+          </div>
+          <div class="flex gap-3 items-start p-3 rounded-lg bg-teal-50">
+            <span class="badge bg-teal-100 text-teal-800 mt-0.5 text-[10px]">POST</span>
+            <div>
+              <code class="font-mono text-blue-700">/api/v1/anonymize/dicom</code>
+              <p class="text-slate-600 text-xs mt-0.5">Anonimizza metadati di un file DICOM (.dcm) via upload multipart. Tag strutturati sostituiti direttamente; campi liberi tramite NER.</p>
+            </div>
+          </div>
+          <div class="flex gap-3 items-start p-3 rounded-lg bg-teal-50">
+            <span class="badge bg-teal-100 text-teal-800 mt-0.5 text-[10px]">POST</span>
+            <div>
+              <code class="font-mono text-blue-700">/api/v1/anonymize/cda</code>
+              <p class="text-slate-600 text-xs mt-0.5">Anonimizza documenti HL7 CDA R2 (XML). Tutti i nodi di testo vengono processati con NER. Compatibile con flussi IHE XDS / XCA.</p>
             </div>
           </div>
           <div class="flex gap-3 items-start p-3 rounded-lg bg-slate-50">
@@ -188,6 +202,33 @@
              class="bg-slate-200 text-slate-800 text-sm px-4 py-2 rounded-lg font-semibold hover:bg-slate-300 transition">
             📄 Apri ReDoc
           </a>
+        </div>
+      </div>
+
+      <!-- Funzionalità avanzate -->
+      <div class="bg-white rounded-2xl shadow-sm p-6">
+        <h2 class="text-xl font-bold text-blue-900 mb-4">✨ Funzionalità avanzate</h2>
+        <div class="space-y-5 text-sm">
+
+          <div class="border-l-4 border-blue-400 pl-4">
+            <p class="font-bold text-slate-800 mb-1">🔒 Pseudonimizzazione</p>
+            <p class="text-slate-600">Ogni valore PII unico viene sostituito con un alias tipizzato deterministico (<code class="bg-slate-100 px-1 rounded">[NAME_001]</code>, <code class="bg-slate-100 px-1 rounded">[PHONE_001]</code>…). Lo stesso valore riceve sempre lo stesso pseudonimo all’interno del documento, preservando la coerenza intra-testo. La <strong>mappa pseudonimo→originale</strong> viene restituita nella risposta API per consentire la re-identificazione autorizzata. Attivabile scegliendo <em>Placeholder → [TIPO_001] pseudonimo</em>.</p>
+          </div>
+
+          <div class="border-l-4 border-amber-400 pl-4">
+            <p class="font-bold text-slate-800 mb-1">🔍 Revisione umana</p>
+            <p class="text-slate-600">La modalità revisione usa l’endpoint <code class="bg-slate-100 px-1 rounded">/api/v1/detect</code> per evidenziare le entità rilevate nel testo con highlight colorati (per tipo). L’operatore può cliccare su ciascun’entità per escluderla, poi confermare: la redazione finale avviene lato client applicando solo le entità accettate. Ideale per contesti ad alta criticità dove il risultato automatico richiede validazione prima dell’archiviazione.</p>
+          </div>
+
+          <div class="border-l-4 border-teal-400 pl-4">
+            <p class="font-bold text-slate-800 mb-1">🩻 Pipeline DICOM</p>
+            <p class="text-slate-600">L’endpoint <code class="bg-slate-100 px-1 rounded">POST /api/v1/anonymize/dicom</code> riceve un file <code class="bg-slate-100 px-1 rounded">.dcm</code> via multipart upload e anonimizza i tag PII strutturati (PatientName, PatientID, ReferringPhysicianName, InstitutionName, …) con sostituzione diretta basata su tipo, e i campi di testo libero (PatientComments, StudyDescription, …) tramite NER. Restituisce un report JSON dei tag modificati e i bytes del file DICOM anonimizzato. Integrabile come middleware tra il PACS/VNA sorgente e il repository di ricerca.</p>
+          </div>
+
+          <div class="border-l-4 border-indigo-400 pl-4">
+            <p class="font-bold text-slate-800 mb-1">🏥 Integrazione IHE / CDA</p>
+            <p class="text-slate-600">L’endpoint <code class="bg-slate-100 px-1 rounded">POST /api/v1/anonymize/cda</code> anonimizza documenti <strong>HL7 CDA R2</strong> (Clinical Document Architecture) in formato XML — il formato dei documenti scambiati nei profili <strong>IHE XDS-SD, XCA, MHD</strong>. Tutti i nodi di testo vengono attraversati con NER, la struttura XML e i namespace vengono preservati. Il servizio può essere inserito come middleware tra il Document Source e il Document Repository XDS, applicando la de-identificazione prima dell’invio a repository di secondary use o ricerca clinica.</p>
+          </div>
         </div>
       </div>
 
@@ -308,12 +349,12 @@
             <div><strong>OpenMed PII models</strong> — BERT fine-tuned su Nemotron-PII (54 entità)</div>
           </div>
           <div class="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
-            <span class="text-lg">🐳</span>
-            <div><strong>Docker multi-arch</strong> — immagine linux/amd64 + linux/arm64</div>
+            <span class="text-lg">🩻</span>
+            <div><strong>pydicom</strong> — lettura/scrittura file DICOM, anonimizzazione metadati</div>
           </div>
           <div class="flex items-center gap-2 p-2 bg-blue-50 rounded-lg">
-            <span class="text-lg">☸️</span>
-            <div><strong>Kubernetes</strong> — Deployment, Service, Ingress pronti</div>
+            <span class="text-lg">🏥</span>
+            <div><strong>lxml</strong> — parsing XML CDA per integrazione IHE XDS/XCA</div>
           </div>
         </div>
       </div>
@@ -342,7 +383,7 @@
         <h3 class="font-bold text-blue-900 mb-3">🔗 Link utili</h3>
         <ul class="space-y-2 text-sm">
           <li><a href="https://huggingface.co/OpenMed" target="_blank" class="text-blue-600 hover:underline">🤗 OpenMed su HuggingFace</a></li>
-          <li><a href="https://huggingface.co/OpenMed/OpenMed-PII-Italian-SuperClinical-Base-184M-v1" target="_blank" class="text-blue-600 hover:underline">🧠 SuperClinical Base 184M (default)</a></li>
+          <li><a href="https://huggingface.co/OpenMed/OpenMed-PII-Italian-SuperClinical-Base-184M-v1" target="_blank" class="text-blue-600 hover:underline">🧠 SuperClinical Base 184M</a></li>
           <li><a href="https://huggingface.co/OpenMed/OpenMed-PII-Italian-BigMed-Large-560M-v1" target="_blank" class="text-blue-600 hover:underline">🧠 BigMed Large 560M</a></li>
           <li><a href="https://huggingface.co/OpenMed/OpenMed-PII-Italian-SuperClinical-Large-434M-v1" target="_blank" class="text-blue-600 hover:underline">🧠 SuperClinical Large 434M (#1 IT)</a></li>
           <li><a href="https://huggingface.co/datasets/ai4privacy/pii-masking-400k" target="_blank" class="text-blue-600 hover:underline">📊 AI4Privacy dataset (subset italiano)</a></li>
@@ -357,7 +398,7 @@
 
   <!-- Footer -->
   <footer class="text-center text-xs text-slate-400 pb-4">
-    Med-Anonymizer v1.0.0 · Apache 2.0 · powered by
+    Med-Anonymizer v1.1.0 · Apache 2.0 · powered by
     <a href="https://huggingface.co/OpenMed" target="_blank" class="text-blue-500 hover:underline">OpenMed</a>
   </footer>
 

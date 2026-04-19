@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Med-Anonymizer — Test</title>
+  <title>Med-Anonymizer</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     :root {
@@ -32,9 +32,82 @@
     .ec-org         { background:#e0e7ff; color:#3730a3; }
     .ec-other       { background:#f3f4f6; color:#374151; }
 
+    /* Review mode highlights */
+    .entity-mark {
+      cursor: pointer;
+      border-radius: 3px;
+      padding: 0 2px;
+      border-bottom: 2px solid currentColor;
+      transition: opacity .15s, filter .15s;
+      position: relative;
+    }
+    .entity-mark:hover { filter: brightness(0.88); }
+    .entity-mark::after {
+      content: attr(data-label);
+      position: absolute;
+      bottom: 100%; left: 50%;
+      transform: translateX(-50%);
+      background: #1e293b; color: #f8fafc;
+      font-size: .65rem; font-family: system-ui, sans-serif;
+      padding: 2px 6px; border-radius: 4px;
+      white-space: nowrap; pointer-events: none;
+      opacity: 0; transition: opacity .12s;
+      z-index: 10;
+    }
+    .entity-mark:hover::after { opacity: 1; }
+    .mark-excluded {
+      opacity: 0.38;
+      text-decoration: line-through;
+      border-bottom-style: dashed;
+    }
+
+    /* DICOM drop zone */
+    .drop-zone {
+      border: 2px dashed #93c5fd;
+      border-radius: 12px;
+      transition: border-color .15s, background .15s;
+    }
+    .drop-zone.drag-over { border-color: #2563eb; background: #eff6ff; }
+
+    /* Pseudonym map table */
+    .pm-table { border-collapse: collapse; width: 100%; font-size: .75rem; }
+    .pm-table th { background: #f1f5f9; text-align: left; padding: 4px 8px; }
+    .pm-table td { padding: 4px 8px; border-top: 1px solid #e2e8f0; }
+    .pm-table tr:hover td { background: #f8fafc; }
+
     /* Spinner */
     .spin { animation: spin .8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Code input (textarea) */
+    .code-input {
+      background: #1e2433;
+      color: #cdd5e0;
+      caret-color: #60a5fa;
+    }
+    .code-input::placeholder { color: #4b5a72; }
+
+    /* Annotation popup chips */
+    .annot-chip {
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: .7rem;
+      font-weight: 600;
+      transition: filter .1s, outline .1s;
+      text-align: left;
+    }
+    .annot-chip:hover { filter: brightness(.88); }
+    .annot-chip.selected { outline: 2px solid #2563eb; outline-offset: 1px; }
+
+    /* Info icon tooltip */
+    .info-icon {
+      cursor: help;
+      font-style: normal;
+      color: #94a3b8;
+      font-size: .8rem;
+    }
+    .info-icon:hover { color: #64748b; }
 
     /* Scrollbar thin */
     ::-webkit-scrollbar { width:5px; height:5px; }
@@ -66,10 +139,13 @@
 <main class="max-w-screen-xl mx-auto px-5 py-6 space-y-4">
 
   <!-- Tabs -->
-  <div class="flex gap-6 border-b border-slate-200 bg-white px-4 rounded-t-xl shadow-sm">
-    <button class="tab-btn active py-3 text-sm" onclick="setTab('text')" id="tab-text">📄 Testo libero</button>
-    <button class="tab-btn py-3 text-sm" onclick="setTab('fhir')" id="tab-fhir">🔷 FHIR JSON</button>
-    <button class="tab-btn py-3 text-sm" onclick="setTab('hl7')"  id="tab-hl7">🔗 HL7 v2</button>
+  <div class="flex gap-6 border-b border-slate-200 bg-white px-4 rounded-t-xl shadow-sm overflow-x-auto">
+    <button class="tab-btn active py-3 text-sm whitespace-nowrap" onclick="setTab('text')" id="tab-text">📄 Testo libero</button>
+    <button class="tab-btn py-3 text-sm whitespace-nowrap" onclick="setTab('fhir')" id="tab-fhir">🔷 FHIR JSON</button>
+    <button class="tab-btn py-3 text-sm whitespace-nowrap" onclick="setTab('hl7')"  id="tab-hl7">🔗 HL7 v2</button>
+    <button class="tab-btn py-3 text-sm whitespace-nowrap" onclick="setTab('dicom')" id="tab-dicom">🩻 DICOM</button>
+    <button class="tab-btn py-3 text-sm whitespace-nowrap" onclick="setTab('cda')"  id="tab-cda">🏥 CDA / IHE</button>
+    <button class="tab-btn py-3 text-sm whitespace-nowrap" onclick="setTab('extract')" id="tab-extract">🔄 Testo → FHIR / HL7</button>
   </div>
 
   <!-- Options bar -->
@@ -77,9 +153,9 @@
     <div class="flex flex-col gap-1">
       <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Modello AI</label>
       <select id="sel-model" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-        <option value="italian-superclinical-base">⚡ SuperClinical Base 184M — veloce (default)</option>
+        <option value="italian-superclinical-base">⚡ SuperClinical Base 184M — veloce</option>
         <option value="italian-bigmed-large">🏥 BigMed Large 560M — italiano clinico</option>
-        <option value="italian-superclinical-large">🎯 SuperClinical Large 434M — massima precisione</option>
+        <option value="italian-superclinical-large" selected>🎯 SuperClinical Large 434M — massima precisione (default)</option>
       </select>
     </div>
 
@@ -88,16 +164,26 @@
       <select id="sel-format" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
         <option value="tag">[ENTITY_TYPE] — mostra il tipo</option>
         <option value="redacted">[REDACTED] — generico</option>
+        <option value="pseudonym">[TIPO_001] — pseudonimo</option>
       </select>
     </div>
 
     <div class="flex flex-col gap-1 min-w-[140px]">
-      <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+      <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
         Confidenza min: <span id="lbl-conf" class="text-blue-600">0.70</span>
+        <i class="info-icon" title="Soglia minima di confidenza del modello NER (0.0–1.0).&#10;&#10;0.50 – molto sensibile: cattura più entità, ma più falsi positivi.&#10;0.70 – bilanciato: default consigliato.&#10;0.90 – molto preciso: può perdere entità borderline.&#10;&#10;Per migliorare i risultati:&#10;• Scegli un modello più grande (SuperClinical Large).&#10;• Abbassa la soglia e usa la Revisione umana.&#10;• Pseudonimizzazione per coerenza tra occorrenze.">ⓘ</i>
       </label>
       <input type="range" id="rng-conf" min="0" max="1" step="0.05" value="0.70"
              oninput="document.getElementById('lbl-conf').textContent=parseFloat(this.value).toFixed(2)"
              class="accent-blue-600 mt-1" />
+    </div>
+
+    <div class="flex flex-col gap-1 hidden" id="wrap-extract-target">
+      <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Formato di output</label>
+      <select id="sel-extract-target" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+        <option value="fhir-patient">🔷 FHIR Patient (R4)</option>
+        <option value="hl7-adt">🔗 HL7 v2 ADT^A01</option>
+      </select>
     </div>
 
     <button id="btn-run" onclick="doAnonymize()"
@@ -110,13 +196,20 @@
       <svg id="ico-spin" class="w-4 h-4 spin hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
         <path stroke-linecap="round" d="M12 3v3m6.36 1.64-2.12 2.12M21 12h-3m-1.64 6.36-2.12-2.12M12 21v-3m-6.36-1.64 2.12-2.12M3 12h3m1.64-6.36 2.12 2.12"/>
       </svg>
-      <span id="lbl-btn">Anonimizza</span>
+      <span id="lbl-btn">Analizza</span>
     </button>
 
-    <button onclick="loadExample()"
-            class="text-sm text-blue-600 hover:text-blue-800 underline underline-offset-2 transition">
-      Carica esempio
-    </button>
+    <label class="flex items-center gap-2 text-sm cursor-pointer select-none" id="wrap-review">
+      <input type="checkbox" id="chk-review" class="accent-blue-600" checked onchange="onReviewToggle()">
+      <span class="text-slate-600">🔍 Revisione umana</span>
+    </label>
+
+    <div class="flex flex-col gap-1" id="wrap-example">
+      <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Esempio</label>
+      <div class="flex gap-2 items-center">
+        <select id="sel-example" onchange="loadExample()" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white max-w-[260px]"></select>
+      </div>
+    </div>
   </div>
 
   <!-- Panels -->
@@ -128,10 +221,37 @@
         <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">INPUT</span>
         <span id="lbl-chars" class="text-xs text-slate-400">0 caratteri</span>
       </div>
-      <textarea id="txt-input" rows="20"
+
+      <!-- Textarea (text / fhir / hl7 / cda) -->
+      <textarea id="txt-input" rows="20" spellcheck="false" autocorrect="off" autocapitalize="off"
                 placeholder="Incolla qui il testo clinico da anonimizzare… (Ctrl+Enter per avviare)"
-                class="flex-1 p-4 resize-none focus:outline-none text-slate-700 min-h-[320px]"
+                class="flex-1 p-4 resize-none focus:outline-none min-h-[320px]"
+                style="white-space: pre-wrap; background: #1e2433; color: #cdd5e0; caret-color: #60a5fa; font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', Courier, monospace; font-size: 13px; line-height: 1.6;"
                 oninput="onInputChange()"></textarea>
+
+      <!-- DICOM drop zone (hidden by default) -->
+      <div id="dicom-drop" class="hidden flex-1 drop-zone flex flex-col items-center justify-center gap-4 p-8 min-h-[320px] text-center"
+           ondragover="event.preventDefault(); this.classList.add('drag-over')"
+           ondragleave="this.classList.remove('drag-over')"
+           ondrop="onDicomDrop(event)">
+        <span class="text-5xl">🩻</span>
+        <div>
+          <p class="font-semibold text-slate-600">Trascina un file .dcm qui</p>
+          <p class="text-sm text-slate-400 mt-1">oppure usa i pulsanti sotto</p>
+        </div>
+        <div class="flex gap-3 flex-wrap justify-center">
+          <button onclick="document.getElementById('dicom-file').click()"
+                  class="text-sm bg-blue-600 text-white hover:bg-blue-700 px-5 py-2.5 rounded-xl font-semibold shadow transition">
+            📂 Seleziona file .dcm
+          </button>
+          <button onclick="downloadDicomSample()"
+                  class="text-sm bg-white text-blue-700 border border-blue-200 hover:bg-blue-50 px-4 py-2.5 rounded-xl font-medium transition">
+            📥 Scarica esempio .dcm
+          </button>
+        </div>
+        <input type="file" id="dicom-file" accept=".dcm" class="hidden" onchange="onDicomFileSelect(event)">
+        <div id="dicom-filename" class="hidden bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 text-sm text-blue-800 font-medium"></div>
+      </div>
     </div>
 
     <!-- Output panel -->
@@ -147,9 +267,34 @@
           📋 Copia
         </button>
       </div>
+
+      <!-- Review confirm bar (hidden until review mode analysis done) -->
+      <div id="review-bar" class="hidden bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center gap-3 flex-wrap">
+        <span class="text-xs text-amber-800 font-semibold">🔍 Clicca sulle entità evidenziate per escluderle dall’anonimizzazione</span>
+        <span id="review-accepted-count" class="text-xs text-amber-700"></span>
+        <button onclick="confirmReview()" class="ml-auto bg-blue-600 text-white text-xs font-bold px-4 py-1.5 rounded-lg hover:bg-blue-700 transition">
+          ✓ Conferma e Anonimizza
+        </button>
+      </div>
+
       <div id="output-area" class="flex-1 p-4 overflow-auto min-h-[320px] text-slate-700 whitespace-pre-wrap">
         <span class="text-slate-300 italic text-xs">Il risultato anonimizzato apparirà qui…</span>
       </div>
+
+      <!-- Pseudonym map (collapsible, hidden by default) -->
+      <div id="pseudonym-section" class="hidden border-t border-slate-100">
+        <button onclick="togglePseudonymMap()" class="w-full text-left px-4 py-2 text-xs font-bold text-slate-500 uppercase tracking-wider hover:bg-slate-50 flex items-center justify-between">
+          <span>🔒 Mappa pseudonimi</span>
+          <span id="pm-arrow">▼</span>
+        </button>
+        <div id="pseudonym-map-body" class="hidden px-4 pb-3 overflow-auto max-h-48">
+          <table class="pm-table">
+            <thead><tr><th>Originale</th><th>Pseudonimo</th></tr></thead>
+            <tbody id="pm-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <!-- Entity legend -->
       <div id="legend" class="px-4 py-2 border-t border-slate-100 flex flex-wrap gap-1.5 min-h-[36px]"></div>
     </div>
@@ -160,9 +305,42 @@
 
 </main>
 
+<!-- ── Annotation popup ─────────────────────────────────────────────────── -->
+<div id="annot-popup" class="hidden fixed z-50 bg-white border border-slate-200 rounded-xl shadow-2xl p-4" style="min-width:290px; max-width:320px">
+  <p class="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">Annota selezione</p>
+  <p class="text-xs text-blue-700 font-mono mb-3 truncate" id="annot-selected-text"></p>
+  <div class="grid grid-cols-2 gap-1 mb-3" id="annot-chips">
+    <button class="annot-chip ec-name"   onclick="selectAnnotType(this,'name')">👤 name</button>
+    <button class="annot-chip ec-date"   onclick="selectAnnotType(this,'date_of_birth')">📅 date_of_birth</button>
+    <button class="annot-chip ec-ssn"    onclick="selectAnnotType(this,'tax_id')">🪪 tax_id</button>
+    <button class="annot-chip ec-ssn"    onclick="selectAnnotType(this,'medical_record_number')">🏥 med. record</button>
+    <button class="annot-chip ec-contact" onclick="selectAnnotType(this,'phone_number')">📞 phone</button>
+    <button class="annot-chip ec-contact" onclick="selectAnnotType(this,'email')">✉️ email</button>
+    <button class="annot-chip ec-address" onclick="selectAnnotType(this,'address')">📍 address</button>
+    <button class="annot-chip ec-org"    onclick="selectAnnotType(this,'organization')">🏢 organization</button>
+  </div>
+  <div class="flex gap-2 items-center">
+    <input id="annot-custom-type" placeholder="tipo personalizzato…"
+           class="flex-1 border border-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+           oninput="clearAnnotChipSelection()">
+    <button onclick="confirmAnnotation()"
+            class="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 transition">Annota</button>
+    <button onclick="closeAnnotPopup()"
+            class="text-slate-400 hover:text-slate-600 text-lg leading-none px-1">✕</button>
+  </div>
+  <p class="text-[10px] text-slate-400 mt-2">💡 Per estendere un'entità errata: escludila (clic sulla mark), poi seleziona il testo corretto e annota.</p>
+</div>
+
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
 let currentTab = 'text';
+let reviewMode = true;
+const tabContent = { text: '', fhir: '', hl7: '', cda: '', extract: '' };
+let reviewEntities = [];   // entity list from /detect
+let reviewText = '';       // original text (for client-side redaction)
+let dicomFile = null;      // FileList entry for DICOM upload
+
+const ALL_TABS = ['text', 'fhir', 'hl7', 'dicom', 'cda', 'extract'];
 
 const ENTITY_CLASS = {
   name: 'ec-name',
@@ -185,7 +363,10 @@ function entityClass(type) {
 
 // ── Examples ───────────────────────────────────────────────────────────────
 const EXAMPLES = {
-  text: `Paziente: Mario Rossi, nato il 15/03/1965, C.F.: RSSMRA65C15D612Z.
+  text: [
+    {
+      label: '🩺 Visita cardiologica',
+      content: `Paziente: Mario Rossi, nato il 15/03/1965, C.F.: RSSMRA65C15D612Z.
 Numero cartella clinica: MRN-2024-98765.
 
 Medico curante: Dott.ssa Anna Ferrari — Ospedale Santa Maria Nuova, Firenze.
@@ -197,58 +378,399 @@ Contatto emergenza: Laura Rossi (moglie), tel. 333-9876543.
 Il paziente si è presentato in data 10/04/2024 per dolori toracici ricorrenti.
 EGA: pH 7.42, pCO2 38 mmHg, pO2 92 mmHg. ECG: RS, freq. 72 bpm.
 Diagnosi: insufficienza mitralica di grado lieve. Terapia: Ramipril 5 mg/die.
-Follow-up previsto: 15/05/2024 ore 10:30 — Ambulatorio Cardiologia.`,
+Follow-up previsto: 15/05/2024 ore 10:30 — Ambulatorio Cardiologia.`
+    },
+    {
+      label: '🩻 Referto radiologico',
+      content: `REFERTO RADIOLOGICO — Rx Torace
+Paziente: Giulia Bianchi, nata il 22/07/1978
+C.F.: BNCGLI78L62F205X — MRN: RX-2024-43201
+Medico richiedente: Prof. Luca Conti — U.O. Pneumologia
+Centro: Radiologia Diagnostica, Policlinico di Milano
+Data esame: 08/03/2024
 
-  fhir: JSON.stringify({
-    resourceType: "Patient",
-    id: "patient-001",
-    identifier: [{ system: "http://hospital.it/mrn", value: "MRN-2024-98765" }],
-    name: [{ use: "official", family: "Rossi", given: ["Mario", "Luigi"] }],
-    birthDate: "1965-03-15",
-    gender: "male",
-    address: [{
-      use: "home",
-      line: ["Via Roma 42"],
-      city: "Firenze",
-      state: "FI",
-      postalCode: "50100",
-      country: "IT"
-    }],
-    telecom: [
-      { system: "phone", value: "055-123456" },
-      { system: "email", value: "mario.rossi@email.it" }
-    ],
-    contact: [{
-      name: { family: "Rossi", given: ["Laura"] },
-      telecom: [{ system: "phone", value: "333-9876543" }]
-    }]
-  }, null, 2),
+QUESITO CLINICO: Valutazione torace per tosse persistente e dispnea da sforzo.
+TECNICA: Proiezione PA e LL in ortostatismo.
 
-  hl7: `MSH|^~\\&|HIS|OSPEDALE|LAB|LABORATORIO|20240410120000||ADT^A01|MSG12345|P|2.5
+REFERTO:
+Cuore di dimensioni nei limiti della norma. Indici cardio-toracici conservati.
+Ilo destro lievemente prominente; non si rilevano addensamenti parenchimali.
+Seni costo-frenici liberi bilateralmente. Non versamenti pleurici evidenti.
+Scheletro osseo senza lesioni focali apprezzabili.
+
+CONCLUSIONI: Quadro radiologico del torace sostanzialmente nella norma.
+Non evidenza di focolai broncopneumonici in atto.
+
+Referto validato da: Dott.ssa Maria Esposito
+Tel. 02-9876543 — Email: m.esposito@policlinico.mi.it`
+    },
+    {
+      label: '📋 Lettera di dimissione',
+      content: `LETTERA DI DIMISSIONE — U.O. NEUROLOGIA
+Ospedale Civile di Brescia
+
+Paziente: Stefano De Luca, nato il 05/11/1952
+C.F.: DLCSFN52S05B157Y — Tessera sanitaria: 80038310721
+Data ricovero: 02/04/2024 — Data dimissione: 09/04/2024
+Medico responsabile: Prof. Roberto Gatti
+
+DIAGNOSI DI DIMISSIONE:
+Ictus ischemico in territorio ACM sinistra. Fibrillazione atriale parossistica.
+
+ANAMNESI:
+Paziente giunto in PS il 02/04/2024 alle ore 06:15 tramite 118
+per emiplegia destra e afasia. Familiari presenti: Carla De Luca (moglie),
+tel. 030-4567891; figlio Marco De Luca, cell. 347-1234567.
+
+TERAPIA ALLA DIMISSIONE:
+- Apixaban 5 mg × 2/die
+- Atorvastatina 40 mg × 1/die (sera)
+- Ramipril 2,5 mg × 1/die
+
+FOLLOW-UP: Visita neurologica il 25/05/2024
+Prenotazioni: CUP tel. 030-3456789 — cup@ospedalebrescia.it`
+    },
+    {
+      label: '🚨 Pronto soccorso',
+      content: `SCHEDA PRONTO SOCCORSO — Ospedale San Giovanni, Torino
+ORA TRIAGE: 14:32 — CODICE: GIALLO — Data: 15/03/2024
+
+PAZIENTE:
+Nome: Fatima Al-Rashid, nata il 03/09/1990
+C.F.: LRSFMZ90P43Z330D — Passaporto: YA-123456
+Domicilio: Via Garibaldi 88, 10100 Torino TO
+Recapito: 011-654321 / 348-9876543
+Medico di base: Dott. Giovanni Marini, tel. 011-223344
+
+MOTIVO ACCESSO: Dolore addominale acuto fossa iliaca destra, nausea, febbre 38.4°C.
+
+ESAMI URGENTI:
+- Emocromo: GB 14.200/μL (↑), Hb 12.1 g/dL, PLT 312.000/μL
+- PCR: 48 mg/L (↑) — Ecografia: falda liquida periappendicolare, appendice > 7 mm
+
+DIAGNOSI: Appendicite acuta. Indicazione chirurgica urgente.
+Chirurgo di guardia: Dott. Paolo Ricci — tel. interno 305.`
+    },
+    {
+      label: '💊 Piano terapeutico oncologico',
+      content: `PIANO TERAPEUTICO — U.O. ONCOLOGIA MEDICA
+Istituto Nazionale Tumori — Milano
+
+Paziente: Giovanni Esposito, nato il 12/06/1958
+C.F.: SPSGNN58H12F205Z — MRN: ONK-2024-10045
+Indirizzo: Viale Monza 110, 20127 Milano MI
+Tel.: 02-3456789 — Email: g.esposito@libero.it
+Contatto familiare: Rosa Esposito (moglie), 347-8901234
+
+DIAGNOSI: Adenocarcinoma polmonare stadio IIIA, EGFR wild-type, PD-L1 65%.
+
+ONCOLOGO RESPONSABILE: Dott.ssa Valentina Colombo
+Email: v.colombo@istituto-tumori.mi.it — Tel. dir.: 02-23901234
+
+PROTOCOLLO: Pembrolizumab 200 mg q21gg + Carboplatino AUC5 + Pemetrexed 500 mg/m²
+1° ciclo: 20/03/2024 — 4° ciclo previsto: 20/06/2024
+
+NOTE: Paziente in buon compenso generale (ECOG PS 1). Rivalutazione TAC prevista
+il 15/07/2024 c/o Radiologia Oncologica. Coordinatore: Inf. Marco Testa, int. 4512.`
+    },
+  ],
+
+  fhir: [
+    {
+      label: 'Patient — Paziente',
+      content: JSON.stringify({
+        resourceType: "Patient",
+        id: "patient-001",
+        identifier: [{ system: "http://hospital.it/mrn", value: "MRN-2024-98765" }],
+        name: [{ use: "official", family: "Rossi", given: ["Mario", "Luigi"] }],
+        birthDate: "1965-03-15",
+        gender: "male",
+        address: [{
+          use: "home",
+          line: ["Via Roma 42"],
+          city: "Firenze",
+          state: "FI",
+          postalCode: "50100",
+          country: "IT"
+        }],
+        telecom: [
+          { system: "phone", value: "055-123456" },
+          { system: "email", value: "mario.rossi@email.it" }
+        ],
+        contact: [{
+          name: { family: "Rossi", given: ["Laura"] },
+          telecom: [{ system: "phone", value: "333-9876543" }]
+        }]
+      }, null, 2)
+    },
+    {
+      label: 'Observation — Esame HbA1c',
+      content: JSON.stringify({
+        resourceType: "Observation",
+        id: "obs-hba1c-001",
+        status: "final",
+        category: [{ coding: [{ system: "http://terminology.hl7.org/CodeSystem/observation-category", code: "laboratory" }] }],
+        code: { coding: [{ system: "http://loinc.org", code: "4548-4", display: "Emoglobina glicata (HbA1c)" }] },
+        subject: { reference: "Patient/patient-001", display: "Rossi Mario" },
+        performer: [{ display: "Dott.ssa Elena Verdi — Lab. Analisi Cliniche Firenze" }],
+        effectiveDateTime: "2024-04-10T08:30:00+02:00",
+        valueQuantity: { value: 7.2, unit: "%", system: "http://unitsofmeasure.org" },
+        note: [{ text: "Valore fuori range. Contattare il paziente Mario Rossi al 333-9876543. Comunicare esito al medico curante Prof. Marco Bianchi — m.bianchi@uslcentro.fi.it" }]
+      }, null, 2)
+    },
+    {
+      label: 'Bundle — Dimissione completa',
+      content: JSON.stringify({
+        resourceType: "Bundle",
+        id: "bundle-dimissione-001",
+        type: "document",
+        entry: [
+          {
+            resource: {
+              resourceType: "Patient",
+              id: "p-002",
+              name: [{ family: "Ferrero", given: ["Claudia"] }],
+              birthDate: "1975-06-20",
+              identifier: [{ value: "MRN-2024-55001" }],
+              address: [{ line: ["Corso Venezia 15"], city: "Milano", postalCode: "20121" }],
+              telecom: [
+                { system: "phone", value: "02-8765432" },
+                { system: "email", value: "c.ferrero@gmail.com" }
+              ]
+            }
+          },
+          {
+            resource: {
+              resourceType: "Condition",
+              subject: { reference: "Patient/p-002", display: "Ferrero Claudia" },
+              recorder: { display: "Dott. Antonio Sala — Cardiologia Niguarda" },
+              note: [{ text: "Paziente Claudia Ferrero, nata 20/06/1975, MRN-2024-55001, ricoverata con aritmia ventricolare. Contatto di emergenza: 02-8765432." }]
+            }
+          },
+          {
+            resource: {
+              resourceType: "Practitioner",
+              id: "prac-001",
+              name: [{ family: "Sala", given: ["Antonio"], prefix: ["Dott."] }],
+              identifier: [{ value: "COD-MED-87654" }],
+              telecom: [
+                { system: "phone", value: "02-6444-3305" },
+                { system: "email", value: "a.sala@niguarda.it" }
+              ]
+            }
+          }
+        ]
+      }, null, 2)
+    },
+  ],
+
+  hl7: [
+    {
+      label: 'ADT^A01 — Ricovero',
+      content: `MSH|^~\\&|HIS|OSPEDALE|LAB|LABORATORIO|20240410120000||ADT^A01|MSG12345|P|2.5
 EVN|A01|20240410120000|||
 PID|1||MRN-2024-98765^^^OSPEDALE^MR||Rossi^Mario^Luigi||19650315|M|||Via Roma 42^^Firenze^FI^50100||055-123456~~~333-9876543|055-123456||M||
 NK1|1|Rossi^Laura|SP|Via Roma 42^^Firenze^FI^50100|333-9876543
 PV1|1|I|Cardio^001^A||||98765^Ferrari^Anna|||||||||||MRN-2024-98765`
+    },
+    {
+      label: 'ORU^R01 — Referto laboratorio',
+      content: `MSH|^~\\&|LAB|LABORATORIO|HIS|OSPEDALE|20240410110000||ORU^R01|MSG99001|P|2.5
+PID|1||MRN-2024-98765^^^OSPEDALE^MR||Rossi^Mario^Luigi||19650315|M|||Via Roma 42^^Firenze^FI^50100||055-123456
+OBR|1|||4548-4^HbA1c^LOINC|||20240410083000|||||||||98765^Ferrari^Anna
+OBX|1|NM|4548-4^Emoglobina glicata^LOINC||7.2|%|4.0-5.6|H|||F|||20240410110000
+NTE|1||Valore elevato. Contattare paziente Mario Rossi al 333-9876543 per visita urgente con Prof. Marco Bianchi.`
+    },
+    {
+      label: 'ORM^O01 — Richiesta esame',
+      content: `MSH|^~\\&|HIS|OSPEDALE|OE|ORDINI|20240411090000||ORM^O01|ORD00123|P|2.5
+PID|1||MRN-2024-55001^^^OSP^MR||Ferrero^Claudia||19750620|F|||Corso Venezia 15^^Milano^MI^20121||02-8765432
+ORC|NW|ORD-2024-4411|||||^^^20240411090000^^
+OBR|1|ORD-2024-4411||29463-7^ECG 12 derivazioni^LOINC|||20240411090000|||||||||87654^Sala^Antonio|||||||Valutare aritmia ventricolare. Paziente Ferrero Claudia, tel. 02-8765432, email: c.ferrero@gmail.com.`
+    },
+    {
+      label: 'ADT^A08 — Aggiornamento dati',
+      content: `MSH|^~\\&|REG|OSPEDALE|HIS|SISTEMA|20240412080000||ADT^A08|UPD00456|P|2.5
+EVN|A08|20240412080000|||
+PID|1||MRN-2024-77321^^^OSP^MR||Conti^Luca^Mario||19881122|M|||Via dei Pini 7^^Bologna^BO^40100||051-8765432~348-1122334|051-8765400|I|C|||CNTLMR88S22A944E
+PD1|||Ambulatorio Medicina Generale^^BO001|45678^Russo^Giuseppe
+NK1|1|Conti^Maria|MTH|Via dei Pini 7^^Bologna^BO^40100|051-8765432
+PV1|1|O|Medicina^AMB^01||||45678^Russo^Giuseppe`
+    },
+  ],
+
+  dicom: [],  // binary — no text examples
+
+  cda: [
+    {
+      label: '🏥 CDA — Lettera di dimissione',
+      content: `<?xml version="1.0" encoding="UTF-8"?>
+<ClinicalDocument xmlns="urn:hl7-org:v3">
+  <realmCode code="IT"/>
+  <typeId root="2.16.840.1.113883.1.3" extension="POCD_HD000040"/>
+  <id root="2.16.840.1.113883.2.9.2.30.4.1" extension="CDA-2024-98765"/>
+  <code code="34108-1" codeSystem="2.16.840.1.113883.6.1" displayName="Lettera di dimissione"/>
+  <title>Lettera di Dimissione - Ospedale Santa Maria Nuova - Firenze</title>
+  <effectiveTime value="20240409120000+0200"/>
+  <recordTarget>
+    <patientRole>
+      <id root="2.16.840.1.113883.2.9.4.3.2" extension="RSSMRA65C15D612Z"/>
+      <addr use="HP">
+        <streetAddressLine>Via Roma 42</streetAddressLine>
+        <city>Firenze</city><postalCode>50100</postalCode><country>IT</country>
+      </addr>
+      <telecom value="tel:055-123456"/>
+      <telecom value="mailto:mario.rossi@email.it"/>
+      <patient>
+        <name><given>Mario</given><family>Rossi</family></name>
+        <administrativeGenderCode code="M"/>
+        <birthTime value="19650315"/>
+      </patient>
+    </patientRole>
+  </recordTarget>
+  <author>
+    <assignedAuthor>
+      <id extension="COD-MED-12345"/>
+      <assignedPerson>
+        <name><prefix>Dott.ssa</prefix><given>Anna</given><family>Ferrari</family></name>
+      </assignedPerson>
+      <representedOrganization>
+        <name>Ospedale Santa Maria Nuova - Firenze</name>
+        <telecom value="tel:055-123456"/>
+        <addr><streetAddressLine>Piazza Santa Maria Nuova 1</streetAddressLine><city>Firenze</city></addr>
+      </representedOrganization>
+    </assignedAuthor>
+  </author>
+  <component>
+    <structuredBody>
+      <component>
+        <section>
+          <title>Diagnosi di Dimissione</title>
+          <text>Paziente Mario Rossi, nato il 15/03/1965 (C.F. RSSMRA65C15D612Z), dimesso dopo ricovero per insufficienza mitralica di grado lieve. Medico curante: Dott.ssa Anna Ferrari, tel. 055-123456, email a.ferrari@ospedale.fi.it. Follow-up il 15/05/2024. Contatto: 333-9876543.</text>
+        </section>
+      </component>
+      <component>
+        <section>
+          <title>Terapia</title>
+          <text>Ramipril 5 mg/die. Controllo cardiologico entro 30 giorni. Riferimento: MRN-2024-98765.</text>
+        </section>
+      </component>
+    </structuredBody>
+  </component>
+</ClinicalDocument>`
+    },
+    {
+      label: '🔬 CDA — Referto di laboratorio',
+      content: `<?xml version="1.0" encoding="UTF-8"?>
+<ClinicalDocument xmlns="urn:hl7-org:v3">
+  <realmCode code="IT"/>
+  <id root="2.16.840.1.113883.2.9.2.30.4.2" extension="LAB-2024-55001"/>
+  <code code="11502-2" codeSystem="2.16.840.1.113883.6.1" displayName="Referto di laboratorio"/>
+  <title>Referto Laboratorio - Policlinico di Milano</title>
+  <effectiveTime value="20240410110000+0200"/>
+  <recordTarget>
+    <patientRole>
+      <id root="2.16.840.1.113883.2.9.4.3.2" extension="BNCGLI78L62F205X"/>
+      <telecom value="tel:02-8765432"/>
+      <telecom value="mailto:g.bianchi@email.it"/>
+      <patient>
+        <name><given>Giulia</given><family>Bianchi</family></name>
+        <birthTime value="19780722"/>
+      </patient>
+    </patientRole>
+  </recordTarget>
+  <author>
+    <assignedAuthor>
+      <assignedPerson><name><given>Elena</given><family>Verdi</family></name></assignedPerson>
+      <representedOrganization><name>Laboratorio Analisi Cliniche - Policlinico di Milano</name></representedOrganization>
+    </assignedAuthor>
+  </author>
+  <component>
+    <structuredBody>
+      <component>
+        <section>
+          <title>Risultati</title>
+          <text>Paziente Giulia Bianchi, nata 22/07/1978 (MRN: RX-2024-43201). HbA1c: 7.2% (fuori range). Contattare al 02-8765432. Comunicare esito al medico richiedente Prof. Luca Conti — l.conti@policlinico.mi.it.</text>
+        </section>
+      </component>
+    </structuredBody>
+  </component>
+</ClinicalDocument>`
+    },
+  ],
 };
 
 // ── Tab management ─────────────────────────────────────────────────────────
 function setTab(tab) {
+  // Persist current textarea content per-tab
+  if (currentTab !== 'dicom' && currentTab in tabContent) {
+    tabContent[currentTab] = document.getElementById('txt-input').value;
+  }
   currentTab = tab;
-  ['text','fhir','hl7'].forEach(t => {
+  if (tab !== 'dicom' && tab in tabContent) {
+    document.getElementById('txt-input').value = tabContent[tab];
+  }
+  ALL_TABS.forEach(t => {
     document.getElementById(`tab-${t}`).classList.toggle('active', t === tab);
   });
-  document.getElementById('wrap-format').style.display = tab === 'fhir' ? 'none' : '';
+
+  const isExtract = tab === 'extract';
+  const isDicom   = tab === 'dicom';
+
+  // Format (placeholder) selector: hide for FHIR, DICOM and extract
+  document.getElementById('wrap-format').style.display = (tab === 'fhir' || isDicom || isExtract) ? 'none' : '';
+
+  // Extract-target selector: show only for extract tab
+  document.getElementById('wrap-extract-target').classList.toggle('hidden', !isExtract);
+
+  // Review toggle: hide for DICOM and extract (not applicable)
+  document.getElementById('wrap-review').style.display = (isDicom || isExtract) ? 'none' : '';
+
+  // Example selector: hide for DICOM (binary)
+  document.getElementById('wrap-example').style.display = isDicom ? 'none' : '';
+
+  // Input area: show drop zone for DICOM, textarea otherwise
+  document.getElementById('txt-input').style.display = isDicom ? 'none' : '';
+  document.getElementById('dicom-drop').style.display = isDicom ? 'flex' : 'none';
+
   const ph = {
-    text: 'Incolla il testo clinico da anonimizzare… (Ctrl+Enter per avviare)',
-    fhir: 'Incolla la risorsa FHIR in formato JSON…',
-    hl7:  'Incolla il messaggio HL7 v2 da anonimizzare…'
+    text:    'Incolla il testo clinico da anonimizzare… (Ctrl+Enter per avviare)',
+    fhir:    'Incolla la risorsa FHIR in formato JSON…',
+    hl7:     'Incolla il messaggio HL7 v2 da anonimizzare…',
+    cda:     'Incolla il documento CDA XML (IHE XDS/XCA)…',
+    dicom:   '',
+    extract: 'Incolla testo clinico libero (lettera di dimissione, referto, anamnesi…)\nIl modello NER riconoscerà automaticamente i dati del paziente e li strutturerà in FHIR Patient o HL7 ADT.',
   };
-  document.getElementById('txt-input').placeholder = ph[tab];
-  resetOutput();
+  document.getElementById('txt-input').placeholder = ph[tab] || '';
+
+  if (isExtract) {
+    document.getElementById('lbl-btn').textContent = 'Converti';
+  } else {
+    document.getElementById('lbl-btn').textContent = reviewMode ? 'Analizza' : 'Anonimizza';
+  }
+
+  updateExampleOptions(tab);
+  // Auto-load first example if this tab has no content yet
+  if (!isDicom && !tabContent[tab]) {
+    loadExample();
+  } else {
+    resetOutput();
+  }
+}
+
+function updateExampleOptions(tab) {
+  const sel = document.getElementById('sel-example');
+  // extract tab reuses text examples
+  const examples = EXAMPLES[tab === 'extract' ? 'text' : tab] || [];
+  sel.innerHTML = examples.map((ex, i) => `<option value="${i}">${ex.label}</option>`).join('');
 }
 
 function loadExample() {
-  document.getElementById('txt-input').value = EXAMPLES[currentTab];
+  const idx = parseInt(document.getElementById('sel-example').value, 10);
+  const key = (currentTab === 'extract') ? 'text' : currentTab;
+  const ex = (EXAMPLES[key] || [])[idx];
+  if (!ex) return;
+  document.getElementById('txt-input').value = ex.content;
   onInputChange();
   resetOutput();
 }
@@ -256,6 +778,13 @@ function loadExample() {
 function onInputChange() {
   const n = document.getElementById('txt-input').value.length;
   document.getElementById('lbl-chars').textContent = n.toLocaleString('it') + ' caratteri';
+}
+
+// ── Review mode toggle ─────────────────────────────────────────────────────
+function onReviewToggle() {
+  reviewMode = document.getElementById('chk-review').checked;
+  document.getElementById('lbl-btn').textContent = reviewMode ? 'Analizza' : 'Anonimizza';
+  resetOutput();
 }
 
 // ── Reset output ───────────────────────────────────────────────────────────
@@ -267,13 +796,35 @@ function resetOutput() {
   document.getElementById('btn-copy').classList.add('hidden');
   document.getElementById('legend').innerHTML = '';
   document.getElementById('err-box').classList.add('hidden');
+  document.getElementById('review-bar').classList.add('hidden');
+  document.getElementById('pseudonym-section').classList.add('hidden');
+  closeAnnotPopup();
+  reviewEntities = [];
+  reviewText = '';
+}
+
+// ── DICOM file handling ────────────────────────────────────────────────────
+function onDicomFileSelect(event) {
+  const f = event.target.files[0];
+  if (!f) return;
+  dicomFile = f;
+  const el = document.getElementById('dicom-filename');
+  el.textContent = `📁 ${f.name} (${(f.size / 1024).toFixed(1)} KB)`;
+  el.classList.remove('hidden');
+}
+function onDicomDrop(event) {
+  event.preventDefault();
+  document.getElementById('dicom-drop').classList.remove('drag-over');
+  const f = event.dataTransfer.files[0];
+  if (!f) return;
+  dicomFile = f;
+  const el = document.getElementById('dicom-filename');
+  el.textContent = `📁 ${f.name} (${(f.size / 1024).toFixed(1)} KB)`;
+  el.classList.remove('hidden');
 }
 
 // ── Anonymize ──────────────────────────────────────────────────────────────
 async function doAnonymize() {
-  const text = document.getElementById('txt-input').value.trim();
-  if (!text) return;
-
   const model   = document.getElementById('sel-model').value;
   const fmt     = document.getElementById('sel-format').value;
   const minConf = parseFloat(document.getElementById('rng-conf').value);
@@ -282,6 +833,47 @@ async function doAnonymize() {
   resetOutput();
 
   try {
+    // ── Extract tab ──
+    if (currentTab === 'extract') {
+      await doExtract();
+      return;
+    }
+
+    // ── DICOM ──
+    if (currentTab === 'dicom') {
+      if (!dicomFile) throw new Error('Seleziona un file .dcm prima di procedere.');
+      const fd = new FormData();
+      fd.append('file', dicomFile);
+      fd.append('model', model);
+      fd.append('min_confidence', minConf);
+      fd.append('placeholder_format', fmt || 'tag');
+      const resp = await fetch('/api/v1/anonymize/dicom', { method: 'POST', body: fd });
+      if (!resp.ok) { const e = await resp.json().catch(() => ({detail:`HTTP ${resp.status}`})); throw new Error(e.detail); }
+      displayDicomResult(await resp.json());
+      return;
+    }
+
+    const text = document.getElementById('txt-input').value.trim();
+    if (!text) { setLoading(false); return; }
+
+    // ── Review mode: call /detect, then show highlights ──
+    if (reviewMode) {
+      const resp = await fetch('/api/v1/detect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, model, min_confidence: minConf }),
+      });
+      if (!resp.ok) { const e = await resp.json().catch(() => ({detail:`HTTP ${resp.status}`})); throw new Error(e.detail); }
+      const data = await resp.json();
+      reviewText = text;
+      reviewEntities = data.entities.map(e => ({ ...e, excluded: false }));
+      renderReview(text, reviewEntities);
+      setBadges(data.entity_count, data.processing_time_ms);
+      updateReviewBar();
+      return;
+    }
+
+    // ── Standard anonymization ──
     let url, body;
     if (currentTab === 'text') {
       url  = '/api/v1/anonymize/text';
@@ -292,23 +884,20 @@ async function doAnonymize() {
       try { resource = JSON.parse(text); }
       catch (e) { throw new Error('JSON FHIR non valido: ' + e.message); }
       body = { resource, model, min_confidence: minConf };
-    } else {
+    } else if (currentTab === 'hl7') {
       url  = '/api/v1/anonymize/hl7';
-      // HL7 uses model key directly
       body = { message: text, model, placeholder_format: fmt, min_confidence: minConf };
+    } else {  // cda
+      url  = '/api/v1/anonymize/cda';
+      body = { document: text, model, placeholder_format: fmt, min_confidence: minConf };
     }
 
     const resp = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
     });
-
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({ detail: `HTTP ${resp.status}` }));
-      throw new Error(err.detail || `HTTP ${resp.status}`);
-    }
-
+    if (!resp.ok) { const e = await resp.json().catch(() => ({detail:`HTTP ${resp.status}`})); throw new Error(e.detail); }
     displayResult(await resp.json());
   } catch (e) {
     showError(e.message);
@@ -322,43 +911,158 @@ function setLoading(on) {
   btn.disabled = on;
   document.getElementById('ico-bolt').classList.toggle('hidden', on);
   document.getElementById('ico-spin').classList.toggle('hidden', !on);
-  document.getElementById('lbl-btn').textContent = on ? 'Elaborazione…' : 'Anonimizza';
+  document.getElementById('lbl-btn').textContent = on ? 'Elaborazione…' : (reviewMode ? 'Analizza' : 'Anonimizza');
 }
 
+// ── Display: standard result ───────────────────────────────────────────────
 function displayResult(data) {
-  const isFhir   = currentTab === 'fhir';
-  const outText  = isFhir
+  const isFhir  = currentTab === 'fhir';
+  const isCda   = currentTab === 'cda';
+  const outText = isFhir
     ? JSON.stringify(data.anonymized_resource, null, 2)
-    : data.anonymized;
+    : (isCda ? data.anonymized_document : data.anonymized);
   const entities = data.entities || [];
-  const count    = data.entity_count ?? entities.length;
+  const count    = data.entity_count ?? (isFhir ? data.total_entities : entities.length);
   const ms       = data.processing_time_ms;
 
-  // Output
   document.getElementById('output-area').textContent = outText;
+  setBadges(count, ms);
+  document.getElementById('btn-copy').classList.remove('hidden');
 
-  // Badges
+  buildLegend(entities);
+
+  // Pseudonym map
+  if (data.pseudonym_map && Object.keys(data.pseudonym_map).length) {
+    const tbody = document.getElementById('pm-tbody');
+    tbody.innerHTML = Object.entries(data.pseudonym_map)
+      .map(([orig, ps]) => `<tr><td class="font-mono text-red-700">${escHtml(orig)}</td><td class="font-mono text-blue-700 font-semibold">${escHtml(ps)}</td></tr>`)
+      .join('');
+    document.getElementById('pseudonym-section').classList.remove('hidden');
+  }
+}
+
+// ── Display: DICOM result ──────────────────────────────────────────────────
+function displayDicomResult(data) {
+  const ms = data.processing_time_ms;
+  setBadges(data.tags_modified, ms, 'tag');
+
+  let html = `<div class="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
+    ${data.tags_modified} tag modificati · ${data.entities_found} entità NER nei campi liberi
+  </div>`;
+
+  if (!data.modified_tags.length) {
+    html += '<p class="text-slate-400 italic text-xs">Nessun tag PII trovato nel file DICOM.</p>';
+  } else {
+    html += '<table class="pm-table w-full text-xs"><thead><tr>'
+      + '<th>Tag</th><th>Nome</th><th>Originale</th><th>Anonimizzato</th>'
+      + '</tr></thead><tbody>';
+    for (const t of data.modified_tags) {
+      html += `<tr>
+        <td class="font-mono text-slate-500">${escHtml(t.tag)}</td>
+        <td class="font-semibold text-blue-700">${escHtml(t.name)}</td>
+        <td class="text-red-700 font-mono">${escHtml(t.original)}</td>
+        <td class="text-green-700 font-mono font-semibold">${escHtml(t.anonymized)}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+  }
+  document.getElementById('output-area').innerHTML = html;
+  document.getElementById('btn-copy').classList.add('hidden');
+}
+
+function setBadges(count, ms, noun = 'entità') {
   const bc = document.getElementById('badge-count');
-  bc.textContent = `${count} ${count === 1 ? 'entità' : 'entità'} rilevate`;
+  bc.textContent = `${count} ${noun} rilevate`;
   bc.classList.remove('hidden');
-
   const bt = document.getElementById('badge-time');
   bt.textContent = `⏱ ${Math.round(ms)} ms`;
   bt.classList.remove('hidden');
+}
 
-  document.getElementById('btn-copy').classList.remove('hidden');
-
-  // Legend
+function buildLegend(entities) {
   const typeCounts = {};
   entities.forEach(e => { typeCounts[e.entity_type] = (typeCounts[e.entity_type] || 0) + 1; });
-  const legend = document.getElementById('legend');
-  legend.innerHTML = Object.entries(typeCounts)
+  document.getElementById('legend').innerHTML = Object.entries(typeCounts)
     .sort((a, b) => b[1] - a[1])
     .map(([type, cnt]) =>
       `<span class="badge ${entityClass(type)}">${type}&nbsp;×${cnt}</span>`
     ).join('');
 }
 
+// ── Review mode rendering ──────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderReview(text, entities) {
+  if (!entities.length) {
+    document.getElementById('output-area').textContent = text;
+    return;
+  }
+  const sorted = [...entities].sort((a, b) => a.start - b.start);
+  let html = '';
+  let cursor = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    const ent = sorted[i];
+    html += escHtml(text.slice(cursor, ent.start));
+    const cls = entityClass(ent.entity_type);
+    html += `<mark class="entity-mark ${cls}" data-idx="${i}"
+      data-label="${ent.entity_type} · ${(ent.score * 100).toFixed(0)}%"
+      onclick="toggleMark(this)">${escHtml(ent.text)}</mark>`;
+    cursor = ent.end;
+  }
+  html += escHtml(text.slice(cursor));
+  // whitespace-pre-wrap needs inline display for marks
+  document.getElementById('output-area').style.whiteSpace = 'pre-wrap';
+  document.getElementById('output-area').innerHTML = html;
+  document.getElementById('review-bar').classList.remove('hidden');
+  buildLegend(entities);
+}
+
+function toggleMark(el) {
+  const idx = parseInt(el.dataset.idx, 10);
+  reviewEntities[idx].excluded = !reviewEntities[idx].excluded;
+  el.classList.toggle('mark-excluded', reviewEntities[idx].excluded);
+  updateReviewBar();
+}
+
+function updateReviewBar() {
+  const accepted = reviewEntities.filter(e => !e.excluded).length;
+  document.getElementById('review-accepted-count').textContent =
+    `${accepted} di ${reviewEntities.length} entità selezionate`;
+}
+
+function confirmReview() {
+  const fmt = document.getElementById('sel-format').value;
+  let text = reviewText;
+  const accepted = reviewEntities.filter(e => !e.excluded);
+  // right-to-left substitution to preserve offsets
+  for (const ent of accepted.sort((a, b) => b.start - a.start)) {
+    const ph = fmt === 'redacted'
+      ? '[REDACTED]'
+      : (fmt === 'pseudonym' ? `[${ent.entity_type.toUpperCase()}_???]` : `[${ent.entity_type.toUpperCase()}]`);
+    text = text.slice(0, ent.start) + ph + text.slice(ent.end);
+  }
+  document.getElementById('output-area').textContent = text;
+  document.getElementById('output-area').style.whiteSpace = 'pre-wrap';
+  document.getElementById('review-bar').classList.add('hidden');
+  document.getElementById('btn-copy').classList.remove('hidden');
+  setBadges(accepted.length, 0);
+}
+
+// ── Pseudonym map toggle ───────────────────────────────────────────────────
+function togglePseudonymMap() {
+  const body = document.getElementById('pseudonym-map-body');
+  const arrow = document.getElementById('pm-arrow');
+  const hidden = body.classList.toggle('hidden');
+  arrow.textContent = hidden ? '▼' : '▲';
+}
+
+// ── Error / copy ──────────────────────────────────────────────────────────
 function showError(msg) {
   const box = document.getElementById('err-box');
   box.textContent = '❌ ' + msg;
@@ -378,6 +1082,204 @@ function copyOutput() {
 document.addEventListener('keydown', e => {
   if (e.ctrlKey && e.key === 'Enter') doAnonymize();
 });
+
+// ── DICOM sample download ──────────────────────────────────────────────
+function downloadDicomSample() {
+  const a = document.createElement('a');
+  a.href = '/api/v1/dicom/sample';
+  a.download = 'sample_paziente_rossi.dcm';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+// ── Extract: testo → struttura FHIR / HL7 ───────────────────────────────
+async function doExtract() {
+  const text = document.getElementById('txt-input').value.trim();
+  if (!text) { setLoading(false); return; }
+  const model   = document.getElementById('sel-model').value;
+  const minConf = parseFloat(document.getElementById('rng-conf').value);
+  const target  = document.getElementById('sel-extract-target').value;
+
+  try {
+    const resp = await fetch('/api/v1/detect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, model, min_confidence: minConf }),
+    });
+    if (!resp.ok) { const e = await resp.json().catch(() => ({detail:`HTTP ${resp.status}`})); throw new Error(e.detail); }
+    const data = await resp.json();
+    const result = buildStructure(data.entities, target);
+    document.getElementById('output-area').textContent = JSON.stringify(result, null, 2);
+    document.getElementById('output-area').style.whiteSpace = 'pre-wrap';
+    setBadges(data.entity_count, data.processing_time_ms);
+    document.getElementById('btn-copy').classList.remove('hidden');
+    buildLegend(data.entities);
+  } catch(e) {
+    showError(e.message);
+  } finally {
+    setLoading(false);
+  }
+}
+
+function buildStructure(entities, target) {
+  const byType = {};
+  for (const e of entities) {
+    const t = e.entity_type.toLowerCase();
+    if (!byType[t]) byType[t] = [];
+    byType[t].push(e.text);
+  }
+  const first = (...types) => { for (const t of types) if ((byType[t]||[]).length) return byType[t][0]; return ''; };
+  const all   = (type) => byType[type] || [];
+
+  if (target === 'fhir-patient') {
+    const nameParts = first('name','full_name');
+    const parts     = nameParts ? nameParts.split(' ') : [];
+    const family    = first('last_name') || (parts.length ? parts[parts.length - 1] : '');
+    const given     = first('given_name') || (parts.length > 1 ? parts.slice(0, -1).join(' ') : '');
+
+    const patient = {
+      resourceType: 'Patient',
+      _note: 'Struttura estratta con NER OpenMed. Verificare i valori prima dell\'uso clinico.',
+      id: 'extracted-' + Date.now(),
+    };
+    if (nameParts) patient.name = [{ use:'official', family, given: given ? [given] : [] }];
+    const dob = first('date_of_birth');
+    if (dob) patient.birthDate = dob;
+
+    const identifiers = [];
+    for (const v of all('medical_record_number')) identifiers.push({ system:'http://hospital.it/mrn', value:v });
+    for (const v of all('tax_id'))   identifiers.push({ system:'http://hl7.it/sid/codiceFiscale', value:v });
+    for (const v of all('ssn'))      identifiers.push({ system:'http://hl7.org/fhir/sid/us-ssn', value:v });
+    if (identifiers.length) patient.identifier = identifiers;
+
+    const telecom = [];
+    for (const v of all('phone_number')) telecom.push({ system:'phone', use:'home', value:v });
+    for (const v of all('email'))        telecom.push({ system:'email',            value:v });
+    if (telecom.length) patient.telecom = telecom;
+
+    const addr = first('address'); const city = first('city'); const zip = first('zip_code');
+    if (addr || city || zip) patient.address = [{ use:'home', line: addr?[addr]:[], city, postalCode:zip }];
+
+    const org = first('organization');
+    if (org) patient.managingOrganization = { display: org };
+    return patient;
+
+  } else {  // hl7-adt
+    const nameParts = first('name','full_name') || '';
+    const parts = nameParts.split(' ');
+    const family = first('last_name') || (parts.length ? parts[parts.length-1] : '');
+    const given  = first('given_name') || (parts.length > 1 ? parts.slice(0,-1).join(' ') : '');
+    const pid    = first('medical_record_number');
+    const dob    = first('date_of_birth').replace(/\D/g,'').slice(0,8);
+    const addr   = first('address');
+    const city   = first('city');
+    const zip    = first('zip_code');
+    const phone  = first('phone_number');
+    const cf     = first('tax_id');
+    const ts = new Date().toISOString().replace(/[^0-9]/g,'').slice(0,14);
+    const msg = [
+      `MSH|^~\\&|EXTRACT|SISTEMA||SISTEMA|${ts}||ADT^A01|MSG${ts}|P|2.5`,
+      `EVN|A01|${ts}|||`,
+      `PID|1||${pid}^^^SISTEMA^MR||${family}^${given}||${dob}|||||${addr}^^${city}^^${zip}||${phone}|||||||${cf}`,
+    ].join('\n');
+    return {
+      _format: 'HL7 v2.5 ADT^A01',
+      _note:   'Struttura estratta con NER OpenMed. Verificare i valori prima dell\'uso clinico.',
+      message: msg,
+      entities_used: Object.fromEntries(Object.entries(byType).map(([k,v])=>[k,v[0]])),
+    };
+  }
+}
+
+// ── Review: manual annotation ───────────────────────────────────────────────
+let annotSelection = null;   // { text, start, end }
+let annotPickedType = null;
+
+function getTextOffset(container, targetNode, targetOffset) {
+  let count = 0;
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    if (node === targetNode) return count + targetOffset;
+    count += node.nodeValue.length;
+  }
+  return -1;
+}
+
+document.addEventListener('mouseup', function(ev) {
+  if (!reviewMode || !reviewEntities.length) return;
+  const outEl = document.getElementById('output-area');
+  if (!outEl.contains(ev.target)) { closeAnnotPopup(); return; }
+
+  const sel = window.getSelection();
+  const selectedText = sel && sel.toString().trim();
+  if (!selectedText || selectedText.length > 200 || sel.rangeCount === 0) { closeAnnotPopup(); return; }
+
+  const range = sel.getRangeAt(0);
+  const startOff = getTextOffset(outEl, range.startContainer, range.startOffset);
+  const endOff   = getTextOffset(outEl, range.endContainer,   range.endOffset);
+  if (startOff < 0 || endOff <= startOff) { closeAnnotPopup(); return; }
+
+  // Check for overlap with existing non-excluded entity
+  const overlaps = reviewEntities.some(en => !en.excluded && en.start < endOff && en.end > startOff);
+  if (overlaps) return;
+
+  annotSelection = { text: selectedText, start: startOff, end: endOff };
+  annotPickedType = null;
+  document.querySelectorAll('.annot-chip').forEach(c => c.classList.remove('selected'));
+  document.getElementById('annot-custom-type').value = '';
+  document.getElementById('annot-selected-text').textContent =
+    selectedText.length > 50 ? selectedText.slice(0,50) + '…' : selectedText;
+
+  const popup = document.getElementById('annot-popup');
+  popup.style.left = Math.min(ev.clientX, window.innerWidth - 310) + 'px';
+  popup.style.top  = (ev.clientY + 14) + 'px';
+  popup.classList.remove('hidden');
+});
+
+function selectAnnotType(chip, type) {
+  annotPickedType = type;
+  document.querySelectorAll('.annot-chip').forEach(c => c.classList.remove('selected'));
+  chip.classList.add('selected');
+  document.getElementById('annot-custom-type').value = '';
+}
+
+function clearAnnotChipSelection() {
+  annotPickedType = null;
+  document.querySelectorAll('.annot-chip').forEach(c => c.classList.remove('selected'));
+}
+
+function confirmAnnotation() {
+  if (!annotSelection) return;
+  const type = (document.getElementById('annot-custom-type').value.trim() || annotPickedType || '').toLowerCase();
+  if (!type) { document.getElementById('annot-custom-type').focus(); return; }
+
+  reviewEntities.push({
+    entity_type: type,
+    text:        annotSelection.text,
+    start:       annotSelection.start,
+    end:         annotSelection.end,
+    score:       1.0,
+    excluded:    false,
+    manual:      true,
+  });
+  reviewEntities.sort((a, b) => a.start - b.start);
+  closeAnnotPopup();
+  renderReview(reviewText, reviewEntities);
+  buildLegend(reviewEntities);
+  updateReviewBar();
+}
+
+function closeAnnotPopup() {
+  const popup = document.getElementById('annot-popup');
+  if (popup) popup.classList.add('hidden');
+  annotSelection = null;
+}
+
+updateExampleOptions('text');
 </script>
+
+
 </body>
 </html>

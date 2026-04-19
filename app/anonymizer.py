@@ -53,7 +53,7 @@ AVAILABLE_MODELS: Dict[str, Dict[str, Any]] = {
     },
 }
 
-DEFAULT_MODEL = "italian-superclinical-base"
+DEFAULT_MODEL = "italian-superclinical-large"
 
 # Characters per chunk (≈ 384 tokens at ~3.5 chars/token, conservative margin)
 _MAX_CHUNK_CHARS = 1_200
@@ -92,6 +92,21 @@ class Anonymizer:
         ner = self._get_pipeline(model_key)
         raw = self._run_chunked(ner, text)
         return [e for e in raw if e["score"] >= min_confidence]
+
+    def pseudonymize(
+        self,
+        text: str,
+        model_key: str = DEFAULT_MODEL,
+        min_confidence: float = 0.70,
+    ) -> Tuple[str, List[Dict], Dict[str, str]]:
+        """Detect PII and replace each unique surface form with a deterministic pseudonym.
+
+        Returns (pseudonymized_text, entities, pseudonym_map).
+        pseudonym_map maps each original string → its assigned pseudonym label.
+        """
+        entities = self.detect(text, model_key, min_confidence)
+        pseudonymized, mapping = _pseudonymize(text, entities)
+        return pseudonymized, entities, mapping
 
     def anonymize(
         self,
@@ -158,6 +173,32 @@ def _normalize(raw: Dict) -> Dict:
         "end": int(raw.get("end", 0)),
         "score": round(float(raw.get("score", 0.0)), 4),
     }
+
+
+def _pseudonymize(text: str, entities: List[Dict]) -> Tuple[str, Dict[str, str]]:
+    """Replace each unique entity surface form with a typed counter pseudonym.
+
+    Example: 'Mario Rossi' → '[NAME_001]', '055-123456' → '[PHONE_NUMBER_001]'
+    Entities with the same text always receive the same pseudonym (intra-document
+    consistency). Returns (pseudonymized_text, {original_text: pseudonym}).
+    """
+    type_counters: Dict[str, int] = {}
+    mapping: Dict[str, str] = {}
+
+    # First pass: assign pseudonyms in document order (left-to-right)
+    for ent in sorted(entities, key=lambda e: e["start"]):
+        key = ent["text"]
+        if key not in mapping:
+            t = ent["entity_type"].upper()
+            type_counters[t] = type_counters.get(t, 0) + 1
+            mapping[key] = f"[{t}_{type_counters[t]:03d}]"
+
+    # Second pass: substitute right-to-left to preserve offsets
+    for ent in sorted(entities, key=lambda e: e["start"], reverse=True):
+        ph = mapping[ent["text"]]
+        text = text[: ent["start"]] + ph + text[ent["end"] :]
+
+    return text, mapping
 
 
 def _redact(text: str, entities: List[Dict], placeholder_format: str) -> str:
