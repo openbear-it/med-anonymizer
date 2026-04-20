@@ -73,15 +73,16 @@ app = FastAPI(
         "### Funzionalit\u00e0\n"
         "| Feature | Descrizione |\n"
         "|---------|-------------|\n"
-        "| **Anonimizzazione** | Sostituisce PII con `[ENTITY_TYPE]` o `[REDACTED]` |\n"
-        "| **Pseudonimizzazione** | Assegna pseudonimi coerenti `[NAME_001]` con mappa reversibile |\n"
-        "| **Revisione umana** | Endpoint `/detect` per highlight interattivo + annotazione manuale |\n"
-        "| **Pipeline DICOM** | 21 tag strutturati + campi testuali con NER |\n"
-        "| **CDA / IHE** | De-identifica documenti HL7 CDA R2 XML (XDS, XCA, MHD) |\n"
-        "| **Estrai struttura** | Converte testo in FHIR Patient R4 o HL7 ADT^A01 via `/detect` |\n\n"
+        "| **Anonimizzazione testo** | Sostituisce PII con `[ENTITY_TYPE]` o `[REDACTED]` tramite NER |"
+        "| **Anonimizzazione strutturata** | FHIR, HL7, DICOM, CDA: sostituzione diretta per campo — nessuna inferenza AI |"
+        "| **Pseudonimizzazione** | Assegna pseudonimi coerenti `[NAME_001]` con mappa reversibile (solo testo libero) |"
+        "| **Revisione umana** | Endpoint `/detect` per highlight interattivo + annotazione manuale |"
+        "| **Pipeline DICOM** | 21 tag strutturati a sostituzione diretta + campi liberi con NER |"
+        "| **CDA / IHE** | De-identifica documenti HL7 CDA R2 XML (XDS, XCA, MHD) per sostituzione strutturale |\n\n"
         "### Confidenza minima (`min_confidence`)\n"
         "Filtra le predizioni NER (range 0.0\u20131.0). Default **0.70** \u2013 bilanciamento ottimale. "
-        "Valori pi\u00f9 bassi aumentano la sensitivit\u00e0; valori pi\u00f9 alti la precisione.\n\n"
+        "Valori pi\u00f9 bassi aumentano la sensitivit\u00e0; valori pi\u00f9 alti la precisione.\n"
+        "Applicabile solo agli endpoint `/anonymize/text`, `/detect` e `/anonymize/dicom` (campi liberi).\n\n"
         "### Conformit\u00e0 normativa\n"
         "Supporta flussi di de-identificazione conformi a **HIPAA Safe Harbor** e **GDPR Art.\u202f4(5)**.\n\n"
         "### Pagine utili\n"
@@ -312,8 +313,11 @@ async def anonymize_text(req: TextRequest):
     tags=["Anonimizzazione"],
     summary="Anonimizza una risorsa FHIR",
     description=(
-        "Attraversa ricorsivamente ogni campo stringa di una risorsa FHIR R4 (JSON) "
-        "e anonimizza i valori che contengono PII. "
+        "Anonimizza i campi PII di una risorsa FHIR R4 (JSON) per **sostituzione strutturale** — "
+        "nessun modello AI viene invocato. "
+        "Ogni campo viene mappato direttamente al suo tipo PII secondo la specifica FHIR "
+        "(`family`→`[NAME]`, `birthDate`→`[DATE_OF_BIRTH]`, `value` ContactPoint→`[PHONE_NUMBER]`/`[EMAIL]`, ecc.). "
+        "Il contenuto narrativo (`div`, `comment`) viene sostituito integralmente con `[REDACTED]`. "
         "Preserva la struttura e i tipi della risorsa originale."
     ),
 )
@@ -322,8 +326,8 @@ async def anonymize_fhir_endpoint(req: FhirRequest):
     try:
         anon_resource, entities = anonymize_fhir(
             req.resource,
-            model_key=req.model.value,
-            min_confidence=req.min_confidence,
+            model_key="",
+            min_confidence=0.0,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -331,7 +335,6 @@ async def anonymize_fhir_endpoint(req: FhirRequest):
     return FhirAnonymizeResponse(
         anonymized_resource=anon_resource,
         total_entities=len(entities),
-        model_used=AVAILABLE_MODELS[req.model.value]["model_id"],
         processing_time_ms=round(elapsed, 2),
     )
 
@@ -342,36 +345,33 @@ async def anonymize_fhir_endpoint(req: FhirRequest):
     tags=["Anonimizzazione"],
     summary="Anonimizza un messaggio HL7 v2",
     description=(
-        "Analizza un messaggio HL7 v2.x (ADT, ORU, ORM…) con NER e redige le entità PII "
-        "rilevate nei campi di testo libero. La struttura del messaggio (segmenti, delimitatori) "
-        "viene preservata."
+        "Anonimizza un messaggio HL7 v2.x (ADT, ORU, ORM…) per **sostituzione strutturale** — "
+        "nessun modello AI viene invocato. "
+        "I campi PII noti (PID-3 MRN, PID-5 nome, PID-7 nascita, PID-11 indirizzo, PID-13/14 telefono, "
+        "NK1, PV1, IN1, GT1…) ricevono un placeholder tipizzato direttamente dalla posizione di campo. "
+        "I campi di testo libero (OBX-5, NTE-3) vengono sostituiti integralmente con `[REDACTED]`. "
+        "La struttura del messaggio (segmenti, delimitatori) viene preservata."
     ),
 )
 async def anonymize_hl7_endpoint(req: Hl7Request):
     t0 = time.perf_counter()
-    pseudonym_map = None
     try:
-        if req.placeholder_format == PlaceholderFormat.pseudonym:
-            normalised = req.message.replace("\r\n", "\n").replace("\r", "\n")
-            redacted_norm, entities, pseudonym_map = anonymizer.pseudonymize(
-                normalised,
-                model_key=req.model.value,
-                min_confidence=req.min_confidence,
-            )
-            redacted = redacted_norm.replace("\n", "\r")
-        else:
-            redacted, entities = anonymize_hl7(
-                req.message,
-                model_key=req.model.value,
-                placeholder_format=req.placeholder_format.value,
-                min_confidence=req.min_confidence,
-            )
+        redacted, entities = anonymize_hl7(
+            req.message,
+            model_key="",
+            placeholder_format=req.placeholder_format.value,
+            min_confidence=0.0,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     elapsed = (time.perf_counter() - t0) * 1000
-    resp = _to_response(redacted, entities, req.model.value, elapsed)
-    resp.pseudonym_map = pseudonym_map
-    return resp
+    return AnonymizeResponse(
+        anonymized=redacted,
+        entities=[Entity(**e) for e in entities],
+        entity_count=len(entities),
+        model_used="structural",
+        processing_time_ms=round(elapsed, 2),
+    )
 
 
 @app.post(
@@ -454,8 +454,11 @@ async def anonymize_dicom_endpoint(
     tags=["Anonimizzazione"],
     summary="Anonimizza documento CDA / IHE XDS",
     description=(
-        "Anonimizza un documento HL7 CDA R2 (Clinical Document Architecture) in formato XML. "
-        "Tutti i nodi di testo vengono analizzati con NER OpenMed e le entità PII sostituite. "
+        "Anonimizza un documento HL7 CDA R2 (Clinical Document Architecture) in formato XML "
+        "per **sostituzione strutturale XPath** — nessun modello AI viene invocato. "
+        "Gli elementi PII noti (patient/name, patientRole/addr, birthTime, telecom, id, assignedPerson/name, "
+        "org names) vengono sostituiti direttamente con placeholder tipizzati. "
+        "Il contenuto narrativo (`section/text`) viene sostituito integralmente con `[REDACTED]`. "
         "La struttura XML, i namespace e gli attributi vengono preservati. "
         "Compatibile con il profilo IHE XDS-SD e utilizzabile come middleware di "
         "de-identificazione prima dell'invio a repository XDS/XCA."
@@ -471,9 +474,9 @@ async def anonymize_cda_endpoint(req: CdaRequest):
     try:
         anon_xml, entities = anonymize_cda(
             req.document,
-            model_key=req.model.value,
+            model_key="",
             placeholder_format=req.placeholder_format.value,
-            min_confidence=req.min_confidence,
+            min_confidence=0.0,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
@@ -482,6 +485,5 @@ async def anonymize_cda_endpoint(req: CdaRequest):
         anonymized_document=anon_xml,
         entities=[Entity(**e) for e in entities],
         entity_count=len(entities),
-        model_used=AVAILABLE_MODELS[req.model.value]["model_id"],
         processing_time_ms=round(elapsed, 2),
     )

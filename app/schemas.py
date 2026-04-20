@@ -55,8 +55,10 @@ class FhirRequest(BaseModel):
             }
         ],
     )
-    model: ModelKey = Field(ModelKey.italian_superclinical_base)
-    min_confidence: float = Field(0.70, ge=0.0, le=1.0)
+    placeholder_format: PlaceholderFormat = Field(
+        PlaceholderFormat.tag,
+        description="'tag' sostituisce con [ENTITY_TYPE], 'redacted' usa [REDACTED]",
+    )
 
 
 class Hl7Request(BaseModel):
@@ -68,9 +70,10 @@ class Hl7Request(BaseModel):
             "MSH|^~\\&|HIS|OSP|LAB|LAB|20240410||ADT^A01|001|P|2.5\rPID|1||12345^^^MRN||Rossi^Mario||19650315|M|||Via Roma 42^^FI"
         ],
     )
-    model: ModelKey = Field(ModelKey.italian_superclinical_base)
-    placeholder_format: PlaceholderFormat = Field(PlaceholderFormat.tag)
-    min_confidence: float = Field(0.70, ge=0.0, le=1.0)
+    placeholder_format: PlaceholderFormat = Field(
+        PlaceholderFormat.tag,
+        description="'tag' sostituisce con [ENTITY_TYPE], 'redacted' usa [REDACTED]",
+    )
 
 
 class DetectRequest(BaseModel):
@@ -115,9 +118,8 @@ class DetectResponse(BaseModel):
 
 
 class FhirAnonymizeResponse(BaseModel):
-    anonymized_resource: Any = Field(..., description="Risorsa FHIR con tutti i campi stringa anonimizzati")
-    total_entities: int = Field(..., description="Numero totale di entità PII trovate in tutta la risorsa")
-    model_used: str
+    anonymized_resource: Any = Field(..., description="Risorsa FHIR con i campi PII anonimizzati per sostituzione strutturale")
+    total_entities: int = Field(..., description="Numero totale di campi PII sostituiti")
     processing_time_ms: float
 
 
@@ -163,18 +165,18 @@ class CdaRequest(BaseModel):
         min_length=10,
         examples=["<ClinicalDocument xmlns='urn:hl7-org:v3'>…</ClinicalDocument>"],
     )
-    model: ModelKey = Field(ModelKey.italian_superclinical_base)
-    placeholder_format: PlaceholderFormat = Field(PlaceholderFormat.tag)
-    min_confidence: float = Field(0.70, ge=0.0, le=1.0)
+    placeholder_format: PlaceholderFormat = Field(
+        PlaceholderFormat.tag,
+        description="'tag' sostituisce con [ENTITY_TYPE], 'redacted' usa [REDACTED]",
+    )
 
 
 class CdaAnonymizeResponse(BaseModel):
     anonymized_document: str = Field(
-        ..., description="Documento CDA con tutte le entità PII anonimizzate"
+        ..., description="Documento CDA con i campi PII anonimizzati per sostituzione strutturale"
     )
     entities: List[Entity]
     entity_count: int
-    model_used: str
     processing_time_ms: float
 
 

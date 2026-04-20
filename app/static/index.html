@@ -150,7 +150,7 @@
 
   <!-- Options bar -->
   <div class="bg-white rounded-xl shadow-sm px-5 py-4 flex flex-wrap gap-5 items-end">
-    <div class="flex flex-col gap-1">
+    <div class="flex flex-col gap-1" id="wrap-model">
       <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Modello AI</label>
       <select id="sel-model" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
         <option value="italian-superclinical-base">⚡ SuperClinical Base 184M — veloce</option>
@@ -168,7 +168,7 @@
       </select>
     </div>
 
-    <div class="flex flex-col gap-1 min-w-[140px]">
+    <div class="flex flex-col gap-1 min-w-[140px]" id="wrap-conf">
       <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
         Confidenza min: <span id="lbl-conf" class="text-blue-600">0.70</span>
         <i class="info-icon" title="Soglia minima di confidenza del modello NER (0.0–1.0).&#10;&#10;0.50 – molto sensibile: cattura più entità, ma più falsi positivi.&#10;0.70 – bilanciato: default consigliato.&#10;0.90 – molto preciso: può perdere entità borderline.&#10;&#10;Per migliorare i risultati:&#10;• Scegli un modello più grande (SuperClinical Large).&#10;• Abbassa la soglia e usa la Revisione umana.&#10;• Pseudonimizzazione per coerenza tra occorrenze.">ⓘ</i>
@@ -717,14 +717,19 @@ function setTab(tab) {
   const isExtract = tab === 'extract';
   const isDicom   = tab === 'dicom';
 
-  // Format (placeholder) selector: hide for FHIR, DICOM and extract
-  document.getElementById('wrap-format').style.display = (tab === 'fhir' || isDicom || isExtract) ? 'none' : '';
+  // Format (placeholder) selector: hide for DICOM and extract only
+  document.getElementById('wrap-format').style.display = (isDicom || isExtract) ? 'none' : '';
+
+  // Model selector + confidence slider: hide for structured formats (no AI)
+  const isStructured = (tab === 'fhir' || tab === 'hl7' || tab === 'cda');
+  document.getElementById('wrap-model').style.display = isStructured ? 'none' : '';
+  document.getElementById('wrap-conf').style.display  = isStructured ? 'none' : '';
 
   // Extract-target selector: show only for extract tab
   document.getElementById('wrap-extract-target').classList.toggle('hidden', !isExtract);
 
-  // Review toggle: hide for DICOM and extract (not applicable)
-  document.getElementById('wrap-review').style.display = (isDicom || isExtract) ? 'none' : '';
+  // Review toggle: hide for DICOM, extract and structured formats (no NER)
+  document.getElementById('wrap-review').style.display = (isDicom || isExtract || isStructured) ? 'none' : '';
 
   // Example selector: hide for DICOM (binary)
   document.getElementById('wrap-example').style.display = isDicom ? 'none' : '';
@@ -745,6 +750,8 @@ function setTab(tab) {
 
   if (isExtract) {
     document.getElementById('lbl-btn').textContent = 'Converti';
+  } else if (isStructured) {
+    document.getElementById('lbl-btn').textContent = 'Anonimizza';
   } else {
     document.getElementById('lbl-btn').textContent = reviewMode ? 'Analizza' : 'Anonimizza';
   }
@@ -856,8 +863,8 @@ async function doAnonymize() {
     const text = document.getElementById('txt-input').value.trim();
     if (!text) { setLoading(false); return; }
 
-    // ── Review mode: call /detect, then show highlights ──
-    if (reviewMode) {
+    // ── Review mode: call /detect, then show highlights (text tab only) ──
+    if (reviewMode && currentTab === 'text') {
       const resp = await fetch('/api/v1/detect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -883,13 +890,13 @@ async function doAnonymize() {
       let resource;
       try { resource = JSON.parse(text); }
       catch (e) { throw new Error('JSON FHIR non valido: ' + e.message); }
-      body = { resource, model, min_confidence: minConf };
+      body = { resource, placeholder_format: fmt };
     } else if (currentTab === 'hl7') {
       url  = '/api/v1/anonymize/hl7';
-      body = { message: text, model, placeholder_format: fmt, min_confidence: minConf };
+      body = { message: text, placeholder_format: fmt };
     } else {  // cda
       url  = '/api/v1/anonymize/cda';
-      body = { document: text, model, placeholder_format: fmt, min_confidence: minConf };
+      body = { document: text, placeholder_format: fmt };
     }
 
     const resp = await fetch(url, {
