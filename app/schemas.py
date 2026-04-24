@@ -41,6 +41,13 @@ class TextRequest(BaseModel):
         ge=0.0,
         le=1.0,
     )
+    use_privacy_filter: bool = Field(
+        True,
+        description=(
+            "Se True, esegue anche openai/privacy-filter in parallelo e unisce "
+            "le entità rilevate (union dei due modelli, massima copertura)."
+        ),
+    )
 
 
 class FhirRequest(BaseModel):
@@ -85,6 +92,13 @@ class DetectRequest(BaseModel):
     )
     model: ModelKey = Field(ModelKey.italian_superclinical_base)
     min_confidence: float = Field(0.70, ge=0.0, le=1.0)
+    use_privacy_filter: bool = Field(
+        True,
+        description=(
+            "Se True, esegue anche openai/privacy-filter in parallelo e unisce "
+            "le entità rilevate (union dei due modelli, massima copertura)."
+        ),
+    )
 
 
 # ─── Responses ───────────────────────────────────────────────────────────────

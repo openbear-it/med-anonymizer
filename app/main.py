@@ -15,7 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from .anonymizer import AVAILABLE_MODELS, DEFAULT_MODEL, anonymizer
+from .anonymizer import AVAILABLE_MODELS, DEFAULT_MODEL, PRIVACY_FILTER_MODEL_ID, anonymizer
 from .cda_handler import LXML_AVAILABLE, anonymize_cda
 from .dicom_handler import PYDICOM_AVAILABLE, anonymize_dicom
 from .fhir_handler import anonymize_fhir
@@ -43,7 +43,7 @@ from .schemas import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s — %(message)s")
 logger = logging.getLogger(__name__)
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.3.0"
 STATIC_DIR = Path(__file__).parent / "static"
 
 
@@ -54,6 +54,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 async def lifespan(app: FastAPI):
     logger.info("Med-Anonymizer v%s starting — preloading default model…", APP_VERSION)
     anonymizer.preload(DEFAULT_MODEL)
+    anonymizer.preload_privacy_filter()
     logger.info("Service ready.")
     yield
     logger.info("Med-Anonymizer shutting down.")
@@ -65,30 +66,35 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Med-Anonymizer",
     description=(
-        "## De-identificazione clinica AI · powered by [OpenMed](https://huggingface.co/OpenMed)\n\n"
+        "## De-identificazione clinica AI · powered by [OpenMed](https://huggingface.co/OpenMed) + [OpenAI Privacy Filter](https://huggingface.co/openai/privacy-filter)\n\n"
         "Servizio REST per l'anonimizzazione automatica di informazioni personali sensibili (PII) "
         "da testi clinici, risorse FHIR R4, messaggi HL7 v2.x, file DICOM e documenti CDA (IHE XDS/XCA).\n\n"
-        "I modelli NER OpenMed rilevano **54 categorie di PII** incluse nome, data di nascita, "
-        "SSN, MRN, indirizzo, telefono, email, e molte altre.\n\n"
-        "### Funzionalit\u00e0\n"
+        "### 🤖 Pipeline NER dual-model (testo libero)\n"
+        "Quando `use_privacy_filter=true` (default), **due modelli girano in parallelo**:\n\n"
+        "1. **OpenMed** (italiano, 54 categorie PII) — DeBERTa-v3 / XLM-RoBERTa fine-tuned su AI4Privacy\n"
+        "2. **OpenAI Privacy Filter** (multilingue, 8 categorie, 128K context) — bidirectional token classifier\n\n"
+        "Le entità vengono unite (union) con deduplicazione degli span sovrapposti per score di confidenza. "
+        "Impostare `use_privacy_filter=false` per usare solo OpenMed.\n\n"
+        "### Funzionalità\n"
         "| Feature | Descrizione |\n"
         "|---------|-------------|\n"
-        "| **Anonimizzazione testo** | Sostituisce PII con `[ENTITY_TYPE]` o `[REDACTED]` tramite NER |"
-        "| **Anonimizzazione strutturata** | FHIR, HL7, DICOM, CDA: sostituzione diretta per campo — nessuna inferenza AI |"
-        "| **Pseudonimizzazione** | Assegna pseudonimi coerenti `[NAME_001]` con mappa reversibile (solo testo libero) |"
-        "| **Revisione umana** | Endpoint `/detect` per highlight interattivo + annotazione manuale |"
-        "| **Pipeline DICOM** | 21 tag strutturati a sostituzione diretta + campi liberi con NER |"
+        "| **Dual-model NER** | OpenMed + OpenAI Privacy Filter in parallelo — massima copertura |\n"
+        "| **Anonimizzazione testo** | Sostituisce PII con `[ENTITY_TYPE]` o `[REDACTED]` tramite NER |\n"
+        "| **Anonimizzazione strutturata** | FHIR, HL7, DICOM, CDA: sostituzione diretta per campo — nessuna inferenza AI |\n"
+        "| **Pseudonimizzazione** | Assegna pseudonimi coerenti `[NAME_001]` con mappa reversibile (solo testo libero) |\n"
+        "| **Revisione umana** | Endpoint `/detect` per highlight interattivo + annotazione manuale |\n"
+        "| **Pipeline DICOM** | 21 tag strutturati a sostituzione diretta + campi liberi con NER |\n"
         "| **CDA / IHE** | De-identifica documenti HL7 CDA R2 XML (XDS, XCA, MHD) per sostituzione strutturale |\n\n"
         "### Confidenza minima (`min_confidence`)\n"
-        "Filtra le predizioni NER (range 0.0\u20131.0). Default **0.70** \u2013 bilanciamento ottimale. "
-        "Valori pi\u00f9 bassi aumentano la sensitivit\u00e0; valori pi\u00f9 alti la precisione.\n"
+        "Filtra le predizioni NER (range 0.0–1.0). Default **0.70** – bilanciamento ottimale. "
+        "Valori più bassi aumentano la sensitività; valori più alti la precisione.\n"
         "Applicabile solo agli endpoint `/anonymize/text`, `/detect` e `/anonymize/dicom` (campi liberi).\n\n"
-        "### Conformit\u00e0 normativa\n"
+        "### Conformità normativa\n"
         "Supporta flussi di de-identificazione conformi a **HIPAA Safe Harbor** e **GDPR Art.\u202f4(5)**.\n\n"
         "### Pagine utili\n"
-        "- [\U0001f527 Interfaccia di test](/ui)\n"
-        "- [\u2139\ufe0f Informazioni sul servizio](/info)\n"
-        "- [\U0001f4d6 ReDoc](/redoc)\n"
+        "- [🔧 Interfaccia di test](/ui)\n"
+        "- [ℹ️ Informazioni sul servizio](/info)\n"
+        "- [📖 ReDoc](/redoc)\n"
     ),
     version=APP_VERSION,
     lifespan=lifespan,
@@ -279,7 +285,9 @@ async def dicom_sample():
     description=(
         "Rileva entità PII in un testo clinico (nota, referto, lettera di dimissione…) "
         "usando NER e le sostituisce con placeholder. "
-        "Supporta documenti lunghi grazie al chunking automatico."
+        "Supporta documenti lunghi grazie al chunking automatico.\n\n"
+        "Con `use_privacy_filter=true` (default) i modelli **OpenMed** e **OpenAI Privacy Filter** "
+        "girano in parallelo e le loro entità vengono unite per massimizzare la copertura."
     ),
 )
 async def anonymize_text(req: TextRequest):
@@ -291,6 +299,7 @@ async def anonymize_text(req: TextRequest):
                 req.text,
                 model_key=req.model.value,
                 min_confidence=req.min_confidence,
+                use_privacy_filter=req.use_privacy_filter,
             )
         else:
             redacted, entities = anonymizer.anonymize(
@@ -298,11 +307,21 @@ async def anonymize_text(req: TextRequest):
                 model_key=req.model.value,
                 placeholder_format=req.placeholder_format.value,
                 min_confidence=req.min_confidence,
+                use_privacy_filter=req.use_privacy_filter,
             )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     elapsed = (time.perf_counter() - t0) * 1000
-    resp = _to_response(redacted, entities, req.model.value, elapsed)
+    model_used = AVAILABLE_MODELS[req.model.value]["model_id"]
+    if req.use_privacy_filter:
+        model_used = f"{model_used} + {PRIVACY_FILTER_MODEL_ID}"
+    resp = AnonymizeResponse(
+        anonymized=redacted,
+        entities=[Entity(**e) for e in entities],
+        entity_count=len(entities),
+        model_used=model_used,
+        processing_time_ms=round(elapsed, 2),
+    )
     resp.pseudonym_map = pseudonym_map
     return resp
 
@@ -381,7 +400,9 @@ async def anonymize_hl7_endpoint(req: Hl7Request):
     summary="Rileva entità PII (solo analisi)",
     description=(
         "Esegue il rilevamento NER e restituisce le entità trovate con posizione e confidenza, "
-        "**senza modificare il testo originale**. Utile per ispezione e audit."
+        "**senza modificare il testo originale**. Utile per ispezione e audit.\n\n"
+        "Con `use_privacy_filter=true` (default) usa la pipeline dual-model "
+        "(OpenMed + OpenAI Privacy Filter in parallelo)."
     ),
 )
 async def detect_entities(req: DetectRequest):
@@ -391,14 +412,18 @@ async def detect_entities(req: DetectRequest):
             req.text,
             model_key=req.model.value,
             min_confidence=req.min_confidence,
+            use_privacy_filter=req.use_privacy_filter,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     elapsed = (time.perf_counter() - t0) * 1000
+    model_used = AVAILABLE_MODELS[req.model.value]["model_id"]
+    if req.use_privacy_filter:
+        model_used = f"{model_used} + {PRIVACY_FILTER_MODEL_ID}"
     return DetectResponse(
         entities=[Entity(**e) for e in entities],
         entity_count=len(entities),
-        model_used=AVAILABLE_MODELS[req.model.value]["model_id"],
+        model_used=model_used,
         processing_time_ms=round(elapsed, 2),
     )
 

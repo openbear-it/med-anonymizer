@@ -7,9 +7,11 @@ documents exceeding the model's max sequence length (~384 tokens ≈ 1 200 chars
 
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Dict, List, Optional, Tuple
 
 from transformers import pipeline
+from opf._api import OPF as _OPF
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +60,15 @@ DEFAULT_MODEL = "italian-superclinical-large"
 # Characters per chunk (≈ 384 tokens at ~3.5 chars/token, conservative margin)
 _MAX_CHUNK_CHARS = 1_200
 
+# ─── OpenAI Privacy Filter (secondary model) ─────────────────────────────────
+# Token-classification model for broad PII categories (8 labels, 128K context).
+# Runs in parallel with the primary OpenMed model to maximise recall.
+# https://huggingface.co/openai/privacy-filter
+
+PRIVACY_FILTER_KEY = "privacy-filter"
+PRIVACY_FILTER_MODEL_ID = "openai/privacy-filter"
+
+
 
 # ─── Anonymizer singleton ────────────────────────────────────────────────────
 
@@ -71,6 +82,7 @@ class Anonymizer:
         if cls._instance is None:
             inst = super().__new__(cls)
             inst._pipelines: Dict[str, Any] = {}
+            inst._opf: Optional[_OPF] = None
             cls._instance = inst
         return cls._instance
 
@@ -82,13 +94,34 @@ class Anonymizer:
         self._get_pipeline(model_key)
         logger.info("Modello '%s' pronto.", model_key)
 
+    def preload_privacy_filter(self) -> None:
+        """Eagerly load the OpenAI privacy-filter model.
+
+        Wrapped in try/except so a failure here does not prevent startup;
+        if unavailable, requests with use_privacy_filter=True will fail gracefully
+        at inference time.
+        """
+        try:
+            logger.info("Pre-caricamento OpenAI privacy-filter (opf)…")
+            self._get_opf().get_runtime()  # triggers model download/load
+            logger.info("OpenAI privacy-filter pronto.")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Impossibile caricare privacy-filter: %s", exc)
+
     def detect(
         self,
         text: str,
         model_key: str = DEFAULT_MODEL,
         min_confidence: float = 0.70,
+        use_privacy_filter: bool = False,
     ) -> List[Dict]:
-        """Run NER on *text* and return entities with score ≥ min_confidence."""
+        """Run NER on *text* and return entities with score ≥ min_confidence.
+
+        When *use_privacy_filter* is True, also runs openai/privacy-filter in
+        parallel and returns the merged, deduplicated union of both models.
+        """
+        if use_privacy_filter:
+            return self._detect_parallel(text, model_key, min_confidence)
         ner = self._get_pipeline(model_key)
         raw = self._run_chunked(ner, text)
         return [e for e in raw if e["score"] >= min_confidence]
@@ -98,13 +131,14 @@ class Anonymizer:
         text: str,
         model_key: str = DEFAULT_MODEL,
         min_confidence: float = 0.70,
+        use_privacy_filter: bool = False,
     ) -> Tuple[str, List[Dict], Dict[str, str]]:
         """Detect PII and replace each unique surface form with a deterministic pseudonym.
 
         Returns (pseudonymized_text, entities, pseudonym_map).
         pseudonym_map maps each original string → its assigned pseudonym label.
         """
-        entities = self.detect(text, model_key, min_confidence)
+        entities = self.detect(text, model_key, min_confidence, use_privacy_filter)
         pseudonymized, mapping = _pseudonymize(text, entities)
         return pseudonymized, entities, mapping
 
@@ -114,12 +148,13 @@ class Anonymizer:
         model_key: str = DEFAULT_MODEL,
         placeholder_format: str = "tag",
         min_confidence: float = 0.70,
+        use_privacy_filter: bool = False,
     ) -> Tuple[str, List[Dict]]:
         """Detect PII entities and replace them with placeholders.
 
         Returns (anonymized_text, entities).
         """
-        entities = self.detect(text, model_key, min_confidence)
+        entities = self.detect(text, model_key, min_confidence, use_privacy_filter)
         redacted = _redact(text, entities, placeholder_format)
         return redacted, entities
 
@@ -141,6 +176,37 @@ class Anonymizer:
                 device=-1,  # CPU — compatibile con AMD64 e ARM64
             )
         return self._pipelines[model_key]
+
+    def _get_opf(self) -> _OPF:
+        """Return the cached OPF instance (lazy-initialized)."""
+        if self._opf is None:
+            self._opf = _OPF(device="cpu")
+        return self._opf
+
+    def _detect_privacy_filter(self, text: str) -> List[Dict]:
+        """Run openai/privacy-filter on *text* via the opf package (no chunking: 128K context)."""
+        result = self._get_opf().redact(text)
+        return [_normalize_opf_span(span) for span in result.detected_spans]
+
+    def _detect_parallel(
+        self,
+        text: str,
+        model_key: str,
+        min_confidence: float,
+    ) -> List[Dict]:
+        """Run OpenMed and privacy-filter concurrently, return merged entities."""
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            f_openmed = pool.submit(
+                lambda: [
+                    e
+                    for e in self._run_chunked(self._get_pipeline(model_key), text)
+                    if e["score"] >= min_confidence  # _run_chunked returns normalised dicts
+                ]
+            )
+            f_privacy = pool.submit(self._detect_privacy_filter, text)
+            openmed_entities = f_openmed.result()
+            privacy_entities = f_privacy.result()
+        return _merge_entities(openmed_entities + privacy_entities)
 
     def _run_chunked(self, ner_pipeline: Any, text: str) -> List[Dict]:
         """Run NER on text, splitting into chunks when necessary."""
@@ -165,6 +231,31 @@ anonymizer = Anonymizer()
 # ─── Pure helpers (no state) ─────────────────────────────────────────────────
 
 
+def _merge_entities(entities: List[Dict]) -> List[Dict]:
+    """Merge entity lists from multiple models, resolving overlapping spans.
+
+    Entities are sorted by start offset; for any overlapping pair the one with
+    the higher confidence score is kept.  This ensures the merged list is
+    non-overlapping and suitable for offset-based redaction.
+    """
+    if not entities:
+        return []
+    sorted_ents = sorted(entities, key=lambda e: (e["start"], -e["score"]))
+    merged: List[Dict] = []
+    for ent in sorted_ents:
+        if not merged:
+            merged.append(ent)
+            continue
+        last = merged[-1]
+        if ent["start"] < last["end"]:  # overlapping span
+            if ent["score"] > last["score"]:
+                merged[-1] = ent  # replace with higher-confidence entity
+            # else: skip — last already wins
+        else:
+            merged.append(ent)
+    return merged
+
+
 def _normalize(raw: Dict) -> Dict:
     return {
         "entity_type": raw.get("entity_group") or raw.get("entity", "UNKNOWN"),
@@ -172,6 +263,17 @@ def _normalize(raw: Dict) -> Dict:
         "start": int(raw.get("start", 0)),
         "end": int(raw.get("end", 0)),
         "score": round(float(raw.get("score", 0.0)), 4),
+    }
+
+
+def _normalize_opf_span(span: Any) -> Dict:
+    """Convert a DetectedSpan from the opf package to our internal dict format."""
+    return {
+        "entity_type": span.label,
+        "text": span.text,
+        "start": int(span.start),
+        "end": int(span.end),
+        "score": 1.0,  # opf usa Viterbi decoding — nessuna probabilità per span
     }
 
 

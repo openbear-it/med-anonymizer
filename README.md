@@ -1,7 +1,8 @@
 # Med-Anonymizer
 
-REST API per la **de-identificazione clinica** di testi, risorse FHIR R4, messaggi HL7 v2, file DICOM e documenti CDA.  
-Powered by [OpenMed](https://huggingface.co/OpenMed) — modelli NER fine-tuned su 54 categorie PII (HIPAA / GDPR).
+> **v1.3.0** — REST API per la **de-identificazione clinica** di testi, risorse FHIR R4, messaggi HL7 v2, file DICOM e documenti CDA.
+
+Powered by [OpenMed](https://huggingface.co/OpenMed) + [OpenAI Privacy Filter](https://huggingface.co/openai/privacy-filter) — pipeline NER dual-model con massima copertura PII (HIPAA / GDPR).
 
 ---
 
@@ -20,7 +21,10 @@ pip install -r requirements.txt
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Al primo avvio il modello default (`italian-superclinical-large`) viene scaricato da HuggingFace (~900 MB).  
+Al primo avvio vengono scaricati da HuggingFace:
+- Il modello default **`italian-superclinical-large`** (~900 MB)
+- **`openai/privacy-filter`** (~3 GB BF16)
+
 I download successivi usano la cache locale configurabile con `HF_HOME`.
 
 | URL | Descrizione |
@@ -29,6 +33,21 @@ I download successivi usano la cache locale configurabile con `HF_HOME`.
 | http://localhost:8000/info | Informazioni sul servizio |
 | http://localhost:8000/docs | Swagger UI |
 | http://localhost:8000/redoc | ReDoc |
+
+---
+
+## Pipeline NER dual-model
+
+Quando `use_privacy_filter=true` (default), **due modelli girano in parallelo** su ogni richiesta di testo libero:
+
+| Modello | Categorie | Lingua | Architettura | Finestra |
+|---------|-----------|--------|--------------|---------|
+| **OpenMed** | 54 categorie PII | Italiano | DeBERTa-v3 / XLM-RoBERTa | ~384 token (chunking auto) |
+| **OpenAI Privacy Filter** | 8 categorie generali | Multilingue | Bidirectional token classifier | 128 K token (no chunking) |
+
+Le entità vengono **unite** (union) con deduplicazione degli span sovrapposti per score di confidenza — massimizza il recall mantenendo la precisione.
+
+Impostare `use_privacy_filter=false` per usare solo OpenMed.
 
 ---
 
@@ -72,7 +91,7 @@ Campi di testo libero (PatientComments, StudyDescription…) processati con NER.
 
 ## Esempi curl
 
-### Testo libero (NER)
+### Testo libero — dual-model (default)
 ```bash
 curl -X POST http://localhost:8000/api/v1/anonymize/text \
   -H "Content-Type: application/json" \
@@ -80,7 +99,19 @@ curl -X POST http://localhost:8000/api/v1/anonymize/text \
     "text": "Paziente Mario Rossi, CF: RSSMRA65C15D612Z, tel. 055-123456",
     "model": "italian-superclinical-large",
     "placeholder_format": "tag",
-    "min_confidence": 0.70
+    "min_confidence": 0.70,
+    "use_privacy_filter": true
+  }'
+```
+
+### Testo libero — solo OpenMed
+```bash
+curl -X POST http://localhost:8000/api/v1/anonymize/text \
+  -H "Content-Type: application/json" \
+  -d '{
+    "text": "Paziente Mario Rossi, CF: RSSMRA65C15D612Z",
+    "model": "italian-superclinical-large",
+    "use_privacy_filter": false
   }'
 ```
 
@@ -114,6 +145,7 @@ curl -X POST http://localhost:8000/api/v1/anonymize/dicom \
 
 | Feature | Descrizione |
 |---------|-------------|
+| **Dual-model NER** | OpenMed + OpenAI Privacy Filter in parallelo, union con dedup per score |
 | **Anonimizzazione testo** | NER → sostituisce PII con `[ENTITY_TYPE]` o `[REDACTED]` |
 | **Anonimizzazione strutturata** | FHIR / HL7 / CDA: sostituzione diretta per campo, zero inferenza AI |
 | **Pseudonimizzazione** | Pseudonimi coerenti `[NAME_001]` con mappa reversibile (solo testo libero) |
@@ -135,6 +167,25 @@ Valutati su [AI4Privacy](https://huggingface.co/datasets/ai4privacy/pii-masking-
 
 Rilevano **54 categorie PII** conformi a GDPR / HIPAA Safe Harbor.
 
+### OpenAI Privacy Filter (corre in parallelo con OpenMed)
+
+| Modello | Parametri attivi | Categorie | Finestra |
+|---------|-----------------|-----------|---------|
+| [`openai/privacy-filter`](https://huggingface.co/openai/privacy-filter) | 50M (1.5B totali) | 8 | 128K token |
+
+Categorie: `private_person`, `private_address`, `private_email`, `private_phone`, `private_url`, `private_date`, `account_number`, `secret`.
+
+---
+
+## Parametro `use_privacy_filter`
+
+Applicabile agli endpoint `/anonymize/text` e `/detect`.
+
+| Valore | Comportamento |
+|--------|--------------|
+| `true` *(default)* | Pipeline dual-model: OpenMed + OpenAI Privacy Filter in parallelo |
+| `false` | Solo OpenMed (più veloce, meno memoria, solo italiano) |
+
 ---
 
 ## Confidenza minima (`min_confidence`)
@@ -149,6 +200,28 @@ Applicabile solo a `/anonymize/text`, `/detect` e `/anonymize/dicom` (campi libe
 
 ---
 
+## Deploy Kubernetes
+
+Il manifest in `kubernetes/` include deployment, service, ingress, PVC e secret per HF_TOKEN.
+
+```bash
+kubectl apply -f kubernetes/namespace.yaml
+kubectl apply -f kubernetes/secret.yaml
+kubectl apply -f kubernetes/pvc.yaml
+kubectl apply -f kubernetes/deployment.yaml
+kubectl apply -f kubernetes/service.yaml
+kubectl apply -f kubernetes/ingress.yaml
+```
+
+Requisiti minimi con dual-model abilitato:
+
+| Risorsa | Request | Limit |
+|---------|---------|-------|
+| CPU | 500m | 4 |
+| Memory | 2Gi | 8Gi |
+
+---
+
 ## Licenza
 
-Apache 2.0 — modelli OpenMed su [huggingface.co/OpenMed](https://huggingface.co/OpenMed)
+Apache 2.0 — modelli OpenMed su [huggingface.co/OpenMed](https://huggingface.co/OpenMed) · OpenAI Privacy Filter su [huggingface.co/openai/privacy-filter](https://huggingface.co/openai/privacy-filter)

@@ -47,8 +47,7 @@
       </p>
       <div class="mt-5 flex flex-wrap gap-3">
         <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">⚡ Veloce — zero AI su dati strutturati</span>
-        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🔒 HIPAA · GDPR</span>
-        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🩻 DICOM</span>
+        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🔒 HIPAA · GDPR</span>        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🦷 Dual NER — OpenMed + OpenAI Privacy Filter</span>        <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🩻 DICOM</span>
         <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">🏥 IHE XDS/CDA</span>
         <span class="bg-white/20 rounded-lg px-3 py-1.5 text-sm font-medium">📄 Apache 2.0</span>
       </div>
@@ -74,7 +73,7 @@
             </li>
             <li class="flex gap-3">
               <span class="flex-shrink-0 w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">2</span>
-              <div><strong>NER con OpenMed</strong> — il modello BERT rileva le entità PII con posizione e score di confidenza.</div>
+              <div><strong>NER parallelo (dual-model)</strong> — il modello <strong>OpenMed</strong> (italiano, 54 categorie) e <strong>OpenAI Privacy Filter</strong> (multilingue, 8 categorie) girano in parallelo. Le entità dei due modelli vengono unite in una lista senza sovrapposizioni (union — massima copertura).</div>
             </li>
             <li class="flex gap-3">
               <span class="flex-shrink-0 w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-xs">3</span>
@@ -103,7 +102,7 @@
 
       <!-- Modelli -->
       <div class="bg-white rounded-2xl shadow-sm p-6">
-        <h2 class="text-xl font-bold text-blue-900 mb-4">🤖 Modelli OpenMed disponibili</h2>
+        <h2 class="text-xl font-bold text-blue-900 mb-4">🤖 Modelli NER disponibili</h2>
         <div class="overflow-x-auto">
           <table class="w-full text-sm border-separate border-spacing-0">
             <thead>
@@ -137,11 +136,23 @@
                 <td class="px-3 py-2.5 text-center font-semibold text-green-700">0.973</td>
                 <td class="px-3 py-2.5 text-xs">DeBERTa-v3-large · <span class="badge bg-green-100 text-green-700">#1 IT</span> <span class="badge bg-blue-100 text-blue-700">default</span></td>
               </tr>
+              <tr class="bg-purple-50/60">
+                <td class="px-3 py-2.5 font-mono text-xs font-bold text-purple-700">privacy-filter
+                  <span class="ml-1 text-[9px] font-semibold bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded-full">parallelo</span>
+                </td>
+                <td class="px-3 py-2.5 text-xs"><a href="https://huggingface.co/openai/privacy-filter" target="_blank" class="text-blue-600 hover:underline">openai/privacy-filter</a></td>
+                <td class="px-3 py-2.5 text-center">1.5B <span class="text-[10px] text-slate-500">(50M attivi)</span></td>
+                <td class="px-3 py-2.5 text-center font-semibold text-purple-700">—</td>
+                <td class="px-3 py-2.5 text-xs">Bidirectional token classifier · 128K ctx · 8 categorie · multilingue · <span class="badge bg-purple-100 text-purple-700">auto (parallelo)</span></td>
+              </tr>
             </tbody>
           </table>
         </div>
+        <div class="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs text-purple-800">
+          🛡️ <strong>Dual-model pipeline</strong> — quando <em>Privacy Filter</em> è attivo (default), OpenMed e OpenAI privacy-filter girano in <strong>parallelo</strong>. Le entità vengono unite (union) e le sovrapposizioni risolte per score. Questo massimizza il <strong>recall</strong> mantenendo precisione: OpenMed copre 54 categorie italiane/cliniche, privacy-filter aggiunge copertura multilingue su 8 categorie generali con finestra da 128 K token (nessun chunking).
+        </div>
         <p class="text-xs text-slate-500 mt-3">
-          Tutti i modelli sono ottimizzati per l'italiano e valutati sul dataset
+          I modelli OpenMed sono valutati sul dataset
           <a href="https://huggingface.co/datasets/ai4privacy/pii-masking-400k"
           target="_blank" class="text-blue-600 underline">AI4Privacy PII Masking 400k</a> (subset italiano).
         </p>
@@ -403,6 +414,7 @@
           <li><a href="https://huggingface.co/OpenMed/OpenMed-PII-Italian-SuperClinical-Base-184M-v1" target="_blank" class="text-blue-600 hover:underline">🧠 SuperClinical Base 184M</a></li>
           <li><a href="https://huggingface.co/OpenMed/OpenMed-PII-Italian-BigMed-Large-560M-v1" target="_blank" class="text-blue-600 hover:underline">🧠 BigMed Large 560M</a></li>
           <li><a href="https://huggingface.co/OpenMed/OpenMed-PII-Italian-SuperClinical-Large-434M-v1" target="_blank" class="text-blue-600 hover:underline">🧠 SuperClinical Large 434M (#1 IT)</a></li>
+          <li><a href="https://huggingface.co/openai/privacy-filter" target="_blank" class="text-blue-600 hover:underline">🛡️ OpenAI Privacy Filter</a></li>
           <li><a href="https://huggingface.co/datasets/ai4privacy/pii-masking-400k" target="_blank" class="text-blue-600 hover:underline">📊 AI4Privacy dataset (subset italiano)</a></li>
           <li><a href="/docs" class="text-blue-600 hover:underline">📖 Swagger UI</a></li>
           <li><a href="/redoc" class="text-blue-600 hover:underline">📄 ReDoc</a></li>
@@ -415,8 +427,10 @@
 
   <!-- Footer -->
   <footer class="text-center text-xs text-slate-400 pb-4">
-    Med-Anonymizer v1.2.0 · Apache 2.0 · powered by
+    Med-Anonymizer v1.3.0 · Apache 2.0 · powered by
     <a href="https://huggingface.co/OpenMed" target="_blank" class="text-blue-500 hover:underline">OpenMed</a>
+    &amp;
+    <a href="https://huggingface.co/openai/privacy-filter" target="_blank" class="text-purple-500 hover:underline">OpenAI Privacy Filter</a>
   </footer>
 
 </main>

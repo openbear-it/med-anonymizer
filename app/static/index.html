@@ -149,66 +149,86 @@
   </div>
 
   <!-- Options bar -->
-  <div class="bg-white rounded-xl shadow-sm px-5 py-4 flex flex-wrap gap-5 items-end">
-    <div class="flex flex-col gap-1" id="wrap-model">
-      <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Modello AI</label>
-      <select id="sel-model" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-        <option value="italian-superclinical-base">⚡ SuperClinical Base 184M — veloce</option>
-        <option value="italian-bigmed-large">🏥 BigMed Large 560M — italiano clinico</option>
-        <option value="italian-superclinical-large" selected>🎯 SuperClinical Large 434M — massima precisione (default)</option>
-      </select>
-    </div>
+  <div class="bg-white rounded-xl shadow-sm divide-y divide-slate-100">
 
-    <div class="flex flex-col gap-1" id="wrap-format">
-      <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Placeholder</label>
-      <select id="sel-format" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-        <option value="tag">[ENTITY_TYPE] — mostra il tipo</option>
-        <option value="redacted">[REDACTED] — generico</option>
-        <option value="pseudonym">[TIPO_001] — pseudonimo</option>
-      </select>
-    </div>
+    <!-- Row 1: Configurazione + pulsante Analizza -->
+    <div class="px-5 py-3 flex flex-wrap gap-4 items-end">
 
-    <div class="flex flex-col gap-1 min-w-[140px]" id="wrap-conf">
-      <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-        Confidenza min: <span id="lbl-conf" class="text-blue-600">0.70</span>
-        <i class="info-icon" title="Soglia minima di confidenza del modello NER (0.0–1.0).&#10;&#10;0.50 – molto sensibile: cattura più entità, ma più falsi positivi.&#10;0.70 – bilanciato: default consigliato.&#10;0.90 – molto preciso: può perdere entità borderline.&#10;&#10;Per migliorare i risultati:&#10;• Scegli un modello più grande (SuperClinical Large).&#10;• Abbassa la soglia e usa la Revisione umana.&#10;• Pseudonimizzazione per coerenza tra occorrenze.">ⓘ</i>
-      </label>
-      <input type="range" id="rng-conf" min="0" max="1" step="0.05" value="0.70"
-             oninput="document.getElementById('lbl-conf').textContent=parseFloat(this.value).toFixed(2)"
-             class="accent-blue-600 mt-1" />
-    </div>
-
-    <div class="flex flex-col gap-1 hidden" id="wrap-extract-target">
-      <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Formato di output</label>
-      <select id="sel-extract-target" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
-        <option value="fhir-patient">🔷 FHIR Patient (R4)</option>
-        <option value="hl7-adt">🔗 HL7 v2 ADT^A01</option>
-      </select>
-    </div>
-
-    <button id="btn-run" onclick="doAnonymize()"
-            class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-95
-                   text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-all
-                   disabled:opacity-40 disabled:cursor-not-allowed shadow">
-      <svg id="ico-bolt" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-        <path d="M11 3L4 12h7l-2 5 9-10h-7l2-4z"/>
-      </svg>
-      <svg id="ico-spin" class="w-4 h-4 spin hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-        <path stroke-linecap="round" d="M12 3v3m6.36 1.64-2.12 2.12M21 12h-3m-1.64 6.36-2.12-2.12M12 21v-3m-6.36-1.64 2.12-2.12M3 12h3m1.64-6.36 2.12 2.12"/>
-      </svg>
-      <span id="lbl-btn">Analizza</span>
-    </button>
-
-    <label class="flex items-center gap-2 text-sm cursor-pointer select-none" id="wrap-review">
-      <input type="checkbox" id="chk-review" class="accent-blue-600" checked onchange="onReviewToggle()">
-      <span class="text-slate-600">🔍 Revisione umana</span>
-    </label>
-
-    <div class="flex flex-col gap-1" id="wrap-example">
-      <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Esempio</label>
-      <div class="flex gap-2 items-center">
-        <select id="sel-example" onchange="loadExample()" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white max-w-[260px]"></select>
+      <div class="flex flex-col gap-1" id="wrap-model">
+        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Modello AI</label>
+        <select id="sel-model" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          <option value="italian-superclinical-base">⚡ SuperClinical Base 184M — veloce</option>
+          <option value="italian-bigmed-large">🏥 BigMed Large 560M — italiano clinico</option>
+          <option value="italian-superclinical-large" selected>🎯 SuperClinical Large 434M — massima precisione</option>
+        </select>
       </div>
+
+      <div class="flex flex-col gap-1" id="wrap-format">
+        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Placeholder</label>
+        <select id="sel-format" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          <option value="tag">[ENTITY_TYPE] — mostra il tipo</option>
+          <option value="redacted">[REDACTED] — generico</option>
+          <option value="pseudonym">[TIPO_001] — pseudonimo</option>
+        </select>
+      </div>
+
+      <div class="flex flex-col gap-1 min-w-[150px]" id="wrap-conf">
+        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+          Confidenza: <span id="lbl-conf" class="text-blue-600 font-mono">0.70</span>
+          <i class="info-icon" title="Soglia minima di confidenza del modello NER (0.0–1.0).&#10;&#10;0.50 – molto sensibile: cattura più entità, ma più falsi positivi.&#10;0.70 – bilanciato: default consigliato.&#10;0.90 – molto preciso: può perdere entità borderline.&#10;&#10;Per migliorare i risultati:&#10;• Scegli un modello più grande (SuperClinical Large).&#10;• Abbassa la soglia e usa la Revisione umana.&#10;• Pseudonimizzazione per coerenza tra occorrenze.">ⓘ</i>
+        </label>
+        <input type="range" id="rng-conf" min="0" max="1" step="0.05" value="0.70"
+               oninput="document.getElementById('lbl-conf').textContent=parseFloat(this.value).toFixed(2)"
+               class="accent-blue-600 mt-1" />
+      </div>
+
+      <div class="flex flex-col gap-1 hidden" id="wrap-extract-target">
+        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Formato output</label>
+        <select id="sel-extract-target" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+          <option value="fhir-patient">🔷 FHIR Patient (R4)</option>
+          <option value="hl7-adt">🔗 HL7 v2 ADT^A01</option>
+        </select>
+      </div>
+
+      <!-- Run button allineato a destra -->
+      <div class="ml-auto flex items-end">
+        <button id="btn-run" onclick="doAnonymize()"
+                class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 active:scale-95
+                       text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-all
+                       disabled:opacity-40 disabled:cursor-not-allowed shadow">
+          <svg id="ico-bolt" class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M11 3L4 12h7l-2 5 9-10h-7l2-4z"/>
+          </svg>
+          <svg id="ico-spin" class="w-4 h-4 spin hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" d="M12 3v3m6.36 1.64-2.12 2.12M21 12h-3m-1.64 6.36-2.12-2.12M12 21v-3m-6.36-1.64 2.12-2.12M3 12h3m1.64-6.36 2.12 2.12"/>
+          </svg>
+          <span id="lbl-btn">Analizza</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Row 2: Opzioni + Esempio -->
+    <div class="px-5 py-2.5 bg-slate-50/70 flex flex-wrap gap-x-5 gap-y-2 items-center">
+
+      <label class="flex items-center gap-2 text-sm cursor-pointer select-none" id="wrap-review">
+        <input type="checkbox" id="chk-review" class="accent-blue-600" checked onchange="onReviewToggle()">
+        <span class="text-slate-600">🔍 Revisione umana</span>
+      </label>
+
+      <label class="flex items-center gap-2 text-sm cursor-pointer select-none" id="wrap-privacy-filter"
+             title="Esegue anche openai/privacy-filter in parallelo e unisce le entità (union dei due modelli, massima copertura).">
+        <input type="checkbox" id="chk-privacy-filter" class="accent-purple-600" checked>
+        <span class="text-slate-600">🛡️ Privacy Filter
+          <span class="ml-1 text-[10px] font-semibold bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">OpenAI</span>
+        </span>
+      </label>
+
+      <div class="ml-auto flex items-center gap-2" id="wrap-example">
+        <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider whitespace-nowrap">Esempio</label>
+        <select id="sel-example" onchange="loadExample()"
+                class="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white max-w-[260px]"></select>
+      </div>
+
     </div>
   </div>
 
@@ -730,6 +750,8 @@ function setTab(tab) {
 
   // Review toggle: hide for DICOM, extract and structured formats (no NER)
   document.getElementById('wrap-review').style.display = (isDicom || isExtract || isStructured) ? 'none' : '';
+  // Privacy filter toggle: show only for NER-based tabs
+  document.getElementById('wrap-privacy-filter').style.display = (isDicom || isExtract || isStructured) ? 'none' : '';
 
   // Example selector: hide for DICOM (binary)
   document.getElementById('wrap-example').style.display = isDicom ? 'none' : '';
@@ -863,12 +885,14 @@ async function doAnonymize() {
     const text = document.getElementById('txt-input').value.trim();
     if (!text) { setLoading(false); return; }
 
+    const usePrivacyFilter = document.getElementById('chk-privacy-filter').checked;
+
     // ── Review mode: call /detect, then show highlights (text tab only) ──
     if (reviewMode && currentTab === 'text') {
       const resp = await fetch('/api/v1/detect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, model, min_confidence: minConf }),
+        body: JSON.stringify({ text, model, min_confidence: minConf, use_privacy_filter: usePrivacyFilter }),
       });
       if (!resp.ok) { const e = await resp.json().catch(() => ({detail:`HTTP ${resp.status}`})); throw new Error(e.detail); }
       const data = await resp.json();
@@ -884,7 +908,7 @@ async function doAnonymize() {
     let url, body;
     if (currentTab === 'text') {
       url  = '/api/v1/anonymize/text';
-      body = { text, model, placeholder_format: fmt, min_confidence: minConf };
+      body = { text, model, placeholder_format: fmt, min_confidence: minConf, use_privacy_filter: usePrivacyFilter };
     } else if (currentTab === 'fhir') {
       url = '/api/v1/anonymize/fhir';
       let resource;
@@ -1109,10 +1133,11 @@ async function doExtract() {
   const target  = document.getElementById('sel-extract-target').value;
 
   try {
-    const resp = await fetch('/api/v1/detect', {
+    const usePrivacyFilter2 = document.getElementById('chk-privacy-filter').checked;
+  const resp = await fetch('/api/v1/detect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, model, min_confidence: minConf }),
+      body: JSON.stringify({ text, model, min_confidence: minConf, use_privacy_filter: usePrivacyFilter2 }),
     });
     if (!resp.ok) { const e = await resp.json().catch(() => ({detail:`HTTP ${resp.status}`})); throw new Error(e.detail); }
     const data = await resp.json();
