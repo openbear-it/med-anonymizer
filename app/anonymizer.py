@@ -180,8 +180,54 @@ class Anonymizer:
     def _get_opf(self) -> _OPF:
         """Return the cached OPF instance (lazy-initialized)."""
         if self._opf is None:
+            self._ensure_opf_checkpoint()
             self._opf = _OPF(device="cpu")
         return self._opf
+
+    @staticmethod
+    def _ensure_opf_checkpoint() -> None:
+        """Se OPF_CHECKPOINT è settato ma assente su disco, scarica il modello lì.
+
+        opf usa OPF_CHECKPOINT come path di un checkpoint già esistente e non
+        scarica automaticamente in quella directory.  Questo metodo colma il gap:
+        al primo avvio (PVC vuoto) scarica openai/privacy-filter nella stessa path
+        usata da OPF, così i pod successivi trovano già il modello nel volume.
+        """
+        import os
+        import shutil
+        from pathlib import Path
+
+        target_env = os.environ.get("OPF_CHECKPOINT")
+        if not target_env:
+            return  # nessun override: opf userà ensure_default_checkpoint() → ~/.opf/privacy_filter
+
+        target = Path(target_env).expanduser()
+        if target.exists():
+            return  # già presente, nulla da fare
+
+        logger.info(
+            "OPF_CHECKPOINT=%s non trovato — download di openai/privacy-filter in corso…",
+            target,
+        )
+        try:
+            from huggingface_hub import snapshot_download
+
+            target.mkdir(parents=True, exist_ok=True)
+            # opf repo layout: i pesi si trovano sotto original/ e vanno promossi
+            snapshot_download(
+                repo_id="openai/privacy-filter",
+                local_dir=str(target),
+                allow_patterns=["original/*"],
+            )
+            original_dir = target / "original"
+            if original_dir.is_dir():
+                for path in original_dir.iterdir():
+                    shutil.move(str(path), str(target / path.name))
+                original_dir.rmdir()
+            logger.info("openai/privacy-filter scaricato in %s", target)
+        except Exception:
+            shutil.rmtree(str(target), ignore_errors=True)
+            raise
 
     def _detect_privacy_filter(self, text: str) -> List[Dict]:
         """Run openai/privacy-filter on *text* via the opf package (no chunking: 128K context)."""
